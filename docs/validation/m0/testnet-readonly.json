@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "suite": "arcbox-m0-readonly",
+  "observedAt": "2026-09-23T04:45:17.509Z",
+  "network": "testnet",
+  "expectedChainId": "5042002",
+  "nodeVersion": "v22.16.0",
+  "endpoint": "https://rpc.testnet.arc.io",
+  "readOnly": true,
+  "status": "BLOCKED",
+  "checks": [
+    {
+      "id": "arc.chain_id",
+      "status": "BLOCKED",
+      "detail": {
+        "code": "RPC_NETWORK_EAI_AGAIN"
+      }
+    }
+  ],
+  "notVerified": [
+    "ERC-20 transfers, approvals, SafeERC20 behavior and failure cases",
+    "transaction receipts, USDC dual logs and finality behavior",
+    "wallet UI, EOA/SIWE/ERC-1271 signatures and contract compatibility",
+    "Cloudflare cloud resources, D1, R2, Queues and Workers builds",
+    "production readiness, audits or complete M0 acceptance"
+  ],
+  "error": {
+    "code": "RPC_NETWORK_EAI_AGAIN",
+    "check": "arc.chain_id"
+  }
+}
