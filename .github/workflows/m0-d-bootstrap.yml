@@ -1,0 +1,58 @@
+name: One-time M0-D dependency resolution
+on:
+  push:
+    branches: [feat/m0-d-arc-compatibility]
+    paths: [.github/workflows/m0-d-bootstrap.yml]
+permissions:
+  contents: write
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - run: node scripts/toolchain/setup-pnpm.mjs
+      - name: Resolve new direct dependencies once, without executing install scripts
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+          const tc = JSON.parse(readFileSync('toolchain.json', 'utf8'));
+          for (const name of ['viem', '@openzeppelin/contracts']) {
+            const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/latest`, { signal: AbortSignal.timeout(15000) });
+            if (!res.ok) throw new Error('REGISTRY_FAILURE');
+            const m = await res.json();
+            if (!/^\d+\.\d+\.\d+$/.test(m.version) || !m.dist?.integrity?.startsWith('sha512-')) throw new Error('INVALID_RELEASE');
+            pkg.devDependencies[name] = m.version;
+            tc.dependencies[name] = m.version;
+            console.log('RESOLVED', name, m.version, m.dist.integrity);
+          }
+          writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+          writeFileSync('toolchain.json', JSON.stringify(tc, null, 2) + '\n');
+          NODE
+          pnpm install --lockfile-only --ignore-scripts
+      - name: Store generated files as unattached blobs only, never commits or refs
+        env:
+          BLOB_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          const blobs = {};
+          for (const path of ['package.json', 'toolchain.json', 'pnpm-lock.yaml']) {
+            const content = readFileSync(path, 'utf8');
+            const r = await fetch('https://api.github.com/repos/iwbinb/ArcBox/git/blobs', {
+              method: 'POST', headers: { Authorization: `Bearer ${process.env.BLOB_TOKEN}`, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+              body: JSON.stringify({ content, encoding: 'utf-8' }), signal: AbortSignal.timeout(15000)
+            });
+            if (!r.ok) throw new Error(`BLOB_WRITE_${r.status}`);
+            blobs[path] = { sha: (await r.json()).sha, sha256: createHash('sha256').update(content).digest('hex'), bytes: Buffer.byteLength(content) };
+          }
+          console.log('M0_D_DEPENDENCY_BLOBS ' + JSON.stringify({ sourceSha: process.env.GITHUB_SHA, dependencies: JSON.parse(readFileSync('package.json')).devDependencies, blobs }));
+          NODE
