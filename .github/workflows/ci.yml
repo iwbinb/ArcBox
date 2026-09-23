@@ -2,7 +2,7 @@ name: ArcBox M0 CI
 
 on:
   push:
-    branches: [main, dev, feat/m0-b-toolchain, feat/m0-c-runtime, feat/m0-d-arc-compatibility]
+    branches: [main, dev]
   pull_request:
     branches: [main, dev]
   workflow_dispatch:
@@ -55,7 +55,7 @@ jobs:
           {
             printf '\nNo Cloudflare deployment or public-chain writes.\n'
             printf 'Required job source: `%s`\n' "$GITHUB_SHA"
-            printf 'Local Arc execution is NOT public-testnet acceptance; a persistent dedicated signer and separate protected execution are required.\n'
+            printf 'This CI run is local/read-only only. M0-D public-testnet acceptance is recorded separately in docs/validation/M0-D-PUBLIC-TESTNET.md.\n'
           } >> "$GITHUB_STEP_SUMMARY"
 
   arc-readonly:

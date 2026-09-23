@@ -27,7 +27,7 @@ export function validateWorkflow(workflow, pins) {
   assert.deepEqual(workflow.permissions, { contents: 'read' });
   assert.deepEqual(Object.keys(workflow.on).sort(), ['pull_request', 'push', 'workflow_dispatch']);
   assert.deepEqual(workflow.on.pull_request.branches, ['main', 'dev']);
-  assert.deepEqual(workflow.on.push.branches, ['main', 'dev', 'feat/m0-b-toolchain', 'feat/m0-c-runtime', 'feat/m0-d-arc-compatibility']);
+  assert.deepEqual(workflow.on.push.branches, ['main', 'dev']);
   assert.equal(workflow.concurrency?.['cancel-in-progress'], true);
   assert.ok(workflow.jobs.required && workflow.jobs['arc-readonly']);
   for (const job of Object.values(workflow.jobs)) {

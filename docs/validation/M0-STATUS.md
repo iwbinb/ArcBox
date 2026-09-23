@@ -1,6 +1,6 @@
 # M0 技术验证 · 当前进度
 
-2026-09-23。**M0 IN PROGRESS，不是整体 PASS。**本状态为分阶段证据索引，历史结果不覆盖为新版本结果。将代码合入 `dev` 不代表公开测试网交易或部署已通过。
+2026-09-23。**M0 按 v1.1 的限定技术探针范围完成；[M0-E 收口报告](M0-E-CLOSURE.md)列明后续 `NOT_RUN` 项。**本状态为分阶段证据索引，历史结果不覆盖为新版本结果。M0-E 的文档及 CI 分支整理仍在 `dev`，经 PR 审查后才进入 `main`；技术基线通过不代表产品或云端已部署。
 
 ## 分支整合
 
@@ -26,7 +26,7 @@
 | M0-B：工具链与 CI | PASS_CI，PR #2 已合并 | [验收报告](M0-B-STATUS.md)、[复现说明](TOOLCHAIN.md)、[PR #2](https://github.com/iwbinb/ArcBox/pull/2) |
 | M0-C：绑定与运行时语义 | PASS_LOCAL_CI，PR #3 已合并 | [验收报告](M0-C-STATUS.md)、[探针说明](RUNTIME-PROBES.md)、[PR #3](https://github.com/iwbinb/ArcBox/pull/3)；新增41项+回归47项通过，合并基线ca2a26f |
 | M0-D：Arc 兼容性开发与实际交易 | PASS_PUBLIC_TESTNET | [历史开发报告](M0-D-STATUS.md)、[真实测试网验收](M0-D-PUBLIC-TESTNET.md)、[受保护运行](https://github.com/iwbinb/ArcBox/actions/runs/35868308292)；9 笔限定交易及 12 项场景通过，执行后余额和授权已核对 |
-| M0-E：技术验证收口 | NOT_RUN | M0-D真实测试网证据齐全后再综合审查 |
+| M0-E：技术验证收口 | PASS_EVIDENCE_REVIEW（dev，待 PR 审查） | [M0-E 收口报告](M0-E-CLOSURE.md)对照早期矩阵、当前 main CI、真实测试网交易和后续阶段门禁；Cloudflare 云端、浏览器钱包和主网明确保留 NOT_RUN |
 
 执行计划仍为 [v1.1](../delivery/01-CODEX-PLAN.md)。先前分支整合没有进入 M0-E 或 M1；PR #4 指向 main 的状态不因代码进入 dev 而被当作已合并或已验收。
 
@@ -46,7 +46,11 @@
 
 补款后，[只读检查 35866759833](https://github.com/iwbinb/ArcBox/actions/runs/35866759833)在提交 `a4e3420`、区块 63598591 确认余额 5.000000 测试 USDC、nonce 0。[受保护预检 35866829296](https://github.com/iwbinb/ArcBox/actions/runs/35866829296)在同一提交上报告 `READY`、签名地址匹配、余额 5.000000、nonce 0，没有广播交易。
 
-随后[受保护执行 35868308292](https://github.com/iwbinb/ArcBox/actions/runs/35868308292)经单独审批，在 `a4e3420` 上完成两探针部署和 9 笔限定交易；`ARC-01` 至 `ARC-12` 全部通过，最后一笔为计划内的链上失败回执。执行后另外以只读 RPC 逐笔重取交易和回执：Gas 合计 0.039161031 测试 USDC，钱包余额 4.960838969、确认/待处理 nonce 均为 9，两探针余额及剩余授权均为 0。详情和交易哈希见 [M0-D 公开测试网验收](M0-D-PUBLIC-TESTNET.md)。**M0-D 在限定范围内通过；整个 M0 尚未收口，下一步是 M0-E。**已使用的钱包不可盲目重跑探针。
+随后[受保护执行 35868308292](https://github.com/iwbinb/ArcBox/actions/runs/35868308292)经单独审批，在 `a4e3420` 上完成两探针部署和 9 笔限定交易；`ARC-01` 至 `ARC-12` 全部通过，最后一笔为计划内的链上失败回执。执行后另外以只读 RPC 逐笔重取交易和回执：Gas 合计 0.039161031 测试 USDC，钱包余额 4.960838969、确认/待处理 nonce 均为 9，两探针余额及剩余授权均为 0。详情和交易哈希见 [M0-D 公开测试网验收](M0-D-PUBLIC-TESTNET.md)。**M0-D 在限定范围内通过；当时 M0-E 尚未收口。**已使用的钱包不可盲目重跑探针。
+
+## M0-E 当前收口
+
+[M0-E 收口报告](M0-E-CLOSURE.md)在已合并 main `a48c205` 的 CI、真实测试网运行及区块 63603869 的只读回查上逐项核验：M0-A/B/C/D 的限定技术能力已通过，早期 Cloudflare 云端及完整浏览器钱包项目分别转入 D0/D1 和 M2 且仍为 NOT_RUN。M0 技术探针基线可收口；**M0-E 文档进入 main 尚待本轮 PR 审查合并，M1-A 是下一子阶段**。这不代表六工具、生产环境或主网可用。
 
 ## 历史证据边界
 
