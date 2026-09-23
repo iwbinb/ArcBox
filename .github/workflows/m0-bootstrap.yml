@@ -19,7 +19,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/arcbox-lock"
           cd "$RUNNER_TEMP/arcbox-lock"
           node --input-type=module <<'NODE'
-          import {writeFileSync} from 'node:fs';
+          import {writeFileSync,readFileSync} from 'node:fs';
           import {createHash} from 'node:crypto';
           import {execFileSync} from 'node:child_process';
           async function metadata(name, selector) {
@@ -37,12 +37,13 @@ jobs:
           const ts=await metadata('typescript',v=>v==='5.9.3');
           const vite=await metadata('vite',v=>v.startsWith('7.'));
           const vitest=await metadata('vitest',v=>v.startsWith('4.'));
-          const cf=await metadata('@cloudflare/vitest-plugin',v=>v==='1.2.3');
+          const cf=await metadata('@cloudflare/vitest-plugin',v=>v.startsWith('1.'));
           const wrangler=await metadata('wrangler',v=>v===cf.dependencies.wrangler);
-          const wt=await metadata('@cloudflare/workers-types',v=>v==='5.20260921.1');
+          const typeVersion=wrangler.peerDependencies['@cloudflare/workers-types'].match(/\d+\.\d+\.\d+/)[0];
+          const wt=await metadata('@cloudflare/workers-types',v=>v===typeVersion);
           const nt=await metadata('@types/node',v=>v.startsWith('22.'));
-          const solc=await metadata('solc',v=>v==='0.8.37');
-          const yaml=await metadata('yaml',v=>v==='2.9.1');
+          const solc=await metadata('solc',v=>v.startsWith('0.8.'));
+          const yaml=await metadata('yaml',v=>v.startsWith('2.'));
           const deps=Object.fromEntries([ts,vite,vitest,cf,wrangler,wt,nt,solc,yaml].map(p=>[p.name,p.version]));
           deps['@vitest/runner']=vitest.version;
           deps['@vitest/snapshot']=vitest.version;
@@ -56,8 +57,6 @@ jobs:
           execFileSync('tar',['-xzf','pnpm.tgz']);
           execFileSync(process.execPath,['package/bin/pnpm.cjs','install','--lockfile-only','--ignore-scripts'],{stdio:'inherit',timeout:180000});
           console.log('MANIFEST_START\n'+JSON.stringify(pkg,null,2)+'\nMANIFEST_END');
-          console.log('LOCK_START');
-          console.log((await import('node:fs')).readFileSync('pnpm-lock.yaml','utf8'));
-          console.log('LOCK_END');
-          console.log('LOCK_SHA256 '+createHash('sha256').update((await import('node:fs')).readFileSync('pnpm-lock.yaml')).digest('hex'));
+          console.log('LOCK_START\n'+readFileSync('pnpm-lock.yaml','utf8')+'LOCK_END');
+          console.log('LOCK_SHA256 '+createHash('sha256').update(readFileSync('pnpm-lock.yaml')).digest('hex'));
           NODE
