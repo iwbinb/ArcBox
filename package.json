@@ -22,7 +22,14 @@
     "probe:arc:sdk": "node scripts/m0/probe-arc-sdk.mjs",
     "probe:arc:write": "node scripts/m0/arc-testnet-write.mjs"
   },
+  "dependencies": {
+    "@phosphor-icons/react": "2.1.10",
+    "react": "19.2.0",
+    "react-dom": "19.2.0"
+  },
   "devDependencies": {
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.7",
     "typescript": "5.9.3",
     "vite": "7.3.6",
     "vitest": "4.1.11",
