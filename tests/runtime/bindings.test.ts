@@ -5,7 +5,13 @@ import worker, { download, sha256, type ProbeEnv } from '../../probes/runtime/wo
 import { initializeSchema } from '../../probes/runtime/schema';
 import { recordEvent, updateDraft, consumeEffect, dispatchOutbox, runScheduled, type ProbeEvent } from '../../probes/runtime/store';
 
-declare module 'cloudflare:workers' { interface ProvidedEnv extends ProbeEnv {} }
+// The pinned workers-types exports use Cloudflare.Env/GlobalProps.
+declare global {
+  namespace Cloudflare {
+    interface Env extends ProbeEnv {}
+    interface GlobalProps { mainModule: typeof import('../../probes/runtime/worker'); }
+  }
+}
 
 // Storage is isolated per FILE, not per test. Every fixture gets unique IDs.
 // No test.concurrent: broker and scheduled work is awaited before assertions.
@@ -24,7 +30,7 @@ async function sizes(e: ProbeEvent) {
 }
 async function batchFor(body: unknown, name = 'm0c-jobs') {
   const messageId = id();
-  const batch = createMessageBatch(name, [{ id: messageId, timestamp: new Date(), body }]);
+  const batch = createMessageBatch(name, [{ id: messageId, timestamp: new Date(), attempts: 1, body }]);
   const context = createExecutionContext();
   await worker.queue(batch, env);
   return { messageId, result: await getQueueResult(batch, context) };
@@ -134,7 +140,7 @@ test('R2-01 actual put/get/head preserve bytes, metadata and SHA-256', async () 
   expect((await env.FILES.head(f.objectKey))?.customMetadata).toEqual({ version: '1' });
   expect(await (await env.FILES.get(f.objectKey))?.text()).toBe(f.body);
 });
-test('R2-02 authorized fetch streams only its private fixture, never public cache', async () => {
+test('R2-02 authorized fetch returns only its private fixture, never public cache', async () => {
   const f = await fileFixture();
   const response = await exports.default.fetch(f.request());
   expect(response.status).toBe(200);
