@@ -1,0 +1,85 @@
+name: ArcBox M0-B CI
+
+on:
+  push:
+    branches: [main, feat/m0-b-toolchain]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CI: 'true'
+  WRANGLER_SEND_METRICS: 'false'
+
+jobs:
+  required:
+    name: Required - frozen install, checks, tests and builds
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6, verified 2026-09-23
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6, verified 2026-09-23
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - name: Install the exact verified package manager
+        run: node scripts/toolchain/setup-pnpm.mjs
+      - name: Install committed dependency graph without re-resolution
+        run: pnpm install --frozen-lockfile
+      - name: Run all M0-B required checks
+        env:
+          ARCBOX_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: pnpm verify
+      - name: Verify lockfile and source remain unchanged
+        run: |
+          git diff --exit-code
+          test -z "$(git ls-files --others --exclude-standard)"
+      - name: Record execution boundary
+        if: ${{ always() }}
+        run: |
+          {
+            printf '\nNo deployment, production credentials or asset transfers.\n'
+            printf 'Required job source: `%s`\n' "$GITHUB_SHA"
+            printf 'D1/R2/Queues semantics and signed chain transactions remain outside M0-B.\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  arc-readonly:
+    name: Separate - Arc testnet read-only availability
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - name: Query only public read methods
+        run: timeout 90s node scripts/m0/probe-arc.mjs --network testnet | tee "$RUNNER_TEMP/arcbox-rpc.json"
+      - name: Record independent RPC result
+        if: ${{ always() }}
+        run: |
+          {
+            printf '# Arc read-only observation\n\nThis job has no dependency on the required offline checks.\n\n'
+            if [[ -s "$RUNNER_TEMP/arcbox-rpc.json" ]]; then
+              printf '```json\n'
+              cat "$RUNNER_TEMP/arcbox-rpc.json"
+              printf '\n```\n'
+            else
+              printf 'No valid RPC report was produced.\n'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
