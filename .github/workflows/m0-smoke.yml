@@ -1,0 +1,86 @@
+name: ArcBox M0 smoke
+
+# Branch-scoped validation only. No deployments, secrets, signing or transfers.
+on:
+  push:
+    branches: [main, feat/m0-validation]
+    paths:
+      - .github/workflows/m0-smoke.yml
+      - scripts/m0/**
+  workflow_dispatch:
+
+# The public repository is fetched anonymously; no GITHUB_TOKEN scope is needed.
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  readonly-validation:
+    name: Runner, offline tests and read-only Arc RPC
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    defaults:
+      run:
+        shell: bash
+    env:
+      CI: 'true'
+      GIT_TERMINAL_PROMPT: '0'
+    steps:
+      - name: Verify runner tools
+        id: runtime
+        run: |
+          date -u +'%Y-%m-%dT%H:%M:%SZ'
+          uname -srm
+          node --version
+          npm --version
+          git --version
+          node --input-type=module -e 'if (Number(process.versions.node.split(".")[0]) < 22) throw new Error("Node >=22 required"); console.log("RUNNER_SMOKE_PASS")'
+
+      - name: Fetch exact public source commit without credentials
+        id: source
+        run: |
+          [[ "$GITHUB_REPOSITORY" == 'iwbinb/ArcBox' ]]
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git init --initial-branch=ci .
+          git remote add origin https://github.com/iwbinb/ArcBox.git
+          git -c credential.helper= fetch --no-tags --depth=1 origin "$GITHUB_SHA"
+          git checkout --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+
+      - name: Check syntax and run offline fixture tests
+        id: offline
+        run: |
+          node --check scripts/m0/probe-arc.mjs
+          node --check scripts/m0/probe-arc.test.mjs
+          node --test --test-reporter=tap scripts/m0/probe-arc.test.mjs | tee "$RUNNER_TEMP/arcbox-offline.tap"
+
+      - name: Query Arc testnet without signing or broadcasting
+        id: rpc
+        run: |
+          timeout 90s node scripts/m0/probe-arc.mjs --network testnet | tee "$RUNNER_TEMP/arcbox-testnet-readonly.json"
+
+      - name: Publish separate verification outcomes
+        if: ${{ always() }}
+        env:
+          RUNTIME_OUTCOME: ${{ steps.runtime.outcome }}
+          SOURCE_OUTCOME: ${{ steps.source.outcome }}
+          OFFLINE_OUTCOME: ${{ steps.offline.outcome }}
+          RPC_OUTCOME: ${{ steps.rpc.outcome }}
+        run: |
+          {
+            printf '# ArcBox M0 smoke\n\n'
+            printf 'Commit: `%s`\n\n' "$GITHUB_SHA"
+            printf '| Check | Outcome |\n|---|---|\n'
+            printf '| Runner | %s |\n' "$RUNTIME_OUTCOME"
+            printf '| Exact source checkout | %s |\n' "$SOURCE_OUTCOME"
+            printf '| Offline fixture tests | %s |\n' "$OFFLINE_OUTCOME"
+            printf '| Live read-only testnet RPC | %s |\n\n' "$RPC_OUTCOME"
+            printf 'This run does not validate transfers, wallet signatures, Cloudflare resources, contracts or complete M0 readiness. No production credentials are configured by this workflow.\n'
+            if [[ -s "$RUNNER_TEMP/arcbox-testnet-readonly.json" ]]; then
+              printf '\n## Read-only RPC report\n\n```json\n'
+              cat "$RUNNER_TEMP/arcbox-testnet-readonly.json"
+              printf '\n```\n'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
