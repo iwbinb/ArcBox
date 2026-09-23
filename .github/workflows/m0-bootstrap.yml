@@ -1,4 +1,4 @@
-name: M0-B one-time dependency inspection
+name: M0-B one-time lock materialization
 on:
   push:
     branches: [feat/m0-b-toolchain]
@@ -8,55 +8,67 @@ concurrency:
   group: m0-b-bootstrap
   cancel-in-progress: true
 jobs:
-  inspect:
+  materialize-lock:
+    # Temporary bootstrap only: creates an unattached blob, never a commit/ref.
+    # The final ci.yml retains contents: read. No deployment or custom secrets.
+    permissions:
+      contents: write
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
-    steps:
-      - name: Resolve candidate lock once (no repository writes)
+    timeout-minutes: 6
+    defaults:
+      run:
         shell: bash
+    steps:
+      - name: Generate exact dependency lock without lifecycle scripts
         run: |
+          test "$GITHUB_REPOSITORY" = iwbinb/ArcBox
+          test "$GITHUB_REF" = refs/heads/feat/m0-b-toolchain
           test "$(node --version)" = v22.23.2
-          mkdir -p "$RUNNER_TEMP/arcbox-lock"
-          cd "$RUNNER_TEMP/arcbox-lock"
+          mkdir -p "$RUNNER_TEMP/arcbox-locked"
+          cd "$RUNNER_TEMP/arcbox-locked"
           node --input-type=module <<'NODE'
           import {writeFileSync,readFileSync} from 'node:fs';
           import {createHash} from 'node:crypto';
           import {execFileSync} from 'node:child_process';
-          async function metadata(name, selector) {
-            const r = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}`, {signal:AbortSignal.timeout(30000)});
-            if(!r.ok) throw new Error(`${name}:${r.status}`);
-            const pack = await r.json();
-            const versions = Object.keys(pack.versions).filter(v=>/^\d+\.\d+\.\d+$/.test(v) && selector(v) && Date.parse(pack.time[v]) < Date.parse('2026-09-22T00:00:00Z'));
-            versions.sort((a,b)=>{const aa=a.split('.').map(Number),bb=b.split('.').map(Number); for(let i=0;i<3;i++){if(aa[i]!==bb[i]) return bb[i]-aa[i];} return 0;});
-            if(!versions.length) throw new Error(`NO_MATURE_VERSION:${name}`);
-            const p = pack.versions[versions[0]];
-            console.log('SELECTED '+JSON.stringify({name,version:p.version,published:pack.time[p.version],engines:p.engines,peers:p.peerDependencies,integrity:p.dist.integrity}));
-            return p;
-          }
-          const pm=await metadata('pnpm',v=>v.startsWith('10.'));
-          const ts=await metadata('typescript',v=>v==='5.9.3');
-          const vite=await metadata('vite',v=>v.startsWith('7.'));
-          const vitest=await metadata('vitest',v=>v.startsWith('4.'));
-          const cf=await metadata('@cloudflare/vitest-plugin',v=>v.startsWith('1.'));
-          const wrangler=await metadata('wrangler',v=>v===cf.dependencies.wrangler);
-          const typeVersion=wrangler.peerDependencies['@cloudflare/workers-types'].match(/\d+\.\d+\.\d+/)[0];
-          const wt=await metadata('@cloudflare/workers-types',v=>v===typeVersion);
-          const nt=await metadata('@types/node',v=>v.startsWith('22.'));
-          const solc=await metadata('solc',v=>v.startsWith('0.8.'));
-          const yaml=await metadata('yaml',v=>v.startsWith('2.'));
-          const deps=Object.fromEntries([ts,vite,vitest,cf,wrangler,wt,nt,solc,yaml].map(p=>[p.name,p.version]));
-          deps['@vitest/runner']=vitest.version;
-          deps['@vitest/snapshot']=vitest.version;
-          const pkg={name:'arcbox',version:'0.0.0',private:true,type:'module',packageManager:`pnpm@${pm.version}`,engines:{node:'22.23.2',pnpm:pm.version},devDependencies:deps};
+          const deps={typescript:'5.9.3',vite:'7.3.6',vitest:'4.1.11','@cloudflare/vitest-plugin':'1.2.1',wrangler:'4.136.1','@cloudflare/workers-types':'5.20260921.1','@types/node':'22.20.4',solc:'0.8.37',yaml:'2.9.1','@vitest/runner':'4.1.11','@vitest/snapshot':'4.1.11'};
+          const pkg={name:'arcbox',version:'0.0.0',private:true,type:'module',packageManager:'pnpm@10.34.5',engines:{node:'22.23.2',pnpm:'10.34.5'},devDependencies:deps};
           writeFileSync('package.json',JSON.stringify(pkg,null,2)+'\n');
           writeFileSync('pnpm-workspace.yaml','packages: []\nstrictPeerDependencies: true\nautoInstallPeers: false\nonlyBuiltDependencies:\n  - esbuild\n  - workerd\n');
-          const bytes=Buffer.from(await (await fetch(pm.dist.tarball,{signal:AbortSignal.timeout(30000)})).arrayBuffer());
+          const res=await fetch('https://registry.npmjs.org/pnpm/-/pnpm-10.34.5.tgz',{redirect:'error',signal:AbortSignal.timeout(30000)});
+          if(!res.ok) throw new Error('PNPM_DOWNLOAD_FAILED');
+          const bytes=Buffer.from(await res.arrayBuffer());
           const sri='sha512-'+createHash('sha512').update(bytes).digest('base64');
-          if(sri!==pm.dist.integrity) throw new Error('PNPM_INTEGRITY_MISMATCH');
+          if(sri!=='sha512-pO4F8vc2WCVb1qiYWcBlpFwopX2u+uLIk6Fo7itzFow3uR6D5X6mdlStA/AwMXRkMOi84442LgQmBfuKvIAZLg==') throw new Error('PNPM_INTEGRITY_MISMATCH');
           writeFileSync('pnpm.tgz',bytes);
           execFileSync('tar',['-xzf','pnpm.tgz']);
           execFileSync(process.execPath,['package/bin/pnpm.cjs','install','--lockfile-only','--ignore-scripts'],{stdio:'inherit',timeout:180000});
-          console.log('MANIFEST_START\n'+JSON.stringify(pkg,null,2)+'\nMANIFEST_END');
-          console.log('LOCK_START\n'+readFileSync('pnpm-lock.yaml','utf8')+'LOCK_END');
-          console.log('LOCK_SHA256 '+createHash('sha256').update(readFileSync('pnpm-lock.yaml')).digest('hex'));
+          const lock=readFileSync('pnpm-lock.yaml');
+          if(lock.length<10000 || lock.length>250000) throw new Error('UNEXPECTED_LOCK_SIZE');
+          const sha256=createHash('sha256').update(lock).digest('hex');
+          const gitSha=createHash('sha1').update(`blob ${lock.length}\0`).update(lock).digest('hex');
+          writeFileSync('lock-metadata.json',JSON.stringify({sha256,gitSha,bytes:lock.length,dependencies:deps},null,2));
+          console.log('GENERATED_LOCK '+readFileSync('lock-metadata.json','utf8'));
+          NODE
+      - name: Store only the generated blob (no branch or commit API calls)
+        env:
+          GH_BLOB_TOKEN: ${{ github.token }}
+        run: |
+          test "$GITHUB_REPOSITORY" = iwbinb/ArcBox
+          test "$GITHUB_REF" = refs/heads/feat/m0-b-toolchain
+          cd "$RUNNER_TEMP/arcbox-locked"
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          import {createHash} from 'node:crypto';
+          const lock=readFileSync('pnpm-lock.yaml');
+          const meta=JSON.parse(readFileSync('lock-metadata.json','utf8'));
+          if(createHash('sha256').update(lock).digest('hex')!==meta.sha256) throw new Error('LOCK_CHANGED');
+          const response=await fetch('https://api.github.com/repos/iwbinb/ArcBox/git/blobs',{
+            method:'POST',redirect:'error',signal:AbortSignal.timeout(30000),
+            headers:{authorization:`Bearer ${process.env.GH_BLOB_TOKEN}`,accept:'application/vnd.github+json','content-type':'application/json','X-GitHub-Api-Version':'2022-11-28'},
+            body:JSON.stringify({content:lock.toString('base64'),encoding:'base64'}),
+          });
+          if(response.status!==201) throw new Error(`BLOB_CREATE_HTTP_${response.status}`);
+          const result=await response.json();
+          if(result.sha!==meta.gitSha) throw new Error('GIT_BLOB_HASH_MISMATCH');
+          console.log('VERIFIED_LOCK_BLOB '+JSON.stringify({sha:result.sha,sha256:meta.sha256,bytes:meta.bytes}));
           NODE
