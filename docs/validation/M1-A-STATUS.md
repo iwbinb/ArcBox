@@ -21,6 +21,7 @@
 - 在 Codex 内置浏览器实际打开四类页面，于 375、768、1440 CSS px 逐一截屏；每页 `scrollWidth == clientWidth`，无横向溢出。手机首页首屏可见前两个工具；公共付款页首屏可见金额；工作区侧栏改为可触达的横向菜单。
 - 实际操作：首页任务搜索及无结果恢复、工具预览、工具对应的向导路由、金额最多 6 位小数校验、规则确认、演示授权与付款分步、凭证状态、手机菜单、工作区新建入口。浏览器控制台错误列表为空。
 - 本地 `npm run build` 通过；独立原型的 `npm run test:sites` 为 4 通过、0 失败。CI 新增独立 `M1-A visual baseline build` job，仅冻结安装、构建和检查原型，不发布。
+- `dev` 实现提交 `6165fbcf41c07dc1f8569fc7e9a9959f11de2d11` 的 [Actions 35880490542](https://github.com/iwbinb/ArcBox/actions/runs/35880490542) 三个 job 均通过：新增视觉原型 job 完成干净安装、构建与 4 项包检查；原必需检查和 Arc 只读 job 也通过。本次报告补充提交后的最终 PR 合并预检仍需对应准确 head 单独核对。
 - [design-qa.md](../../design/m1-a/design-qa.md)保留原图/渲染同画面对比、修正历史与最后 `final result: passed`。对普通文字的目标是 [WCAG 2.2 AA 4.5:1](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum)；本轮对关键灰色文字加深并检查主按钮 44 px 触控高度，不宣称完成独立无障碍审计。
 
 ## 边界与交接
