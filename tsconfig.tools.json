@@ -1,5 +1,5 @@
 {
   "extends": "./tsconfig.base.json",
-  "compilerOptions": { "lib": ["ES2022"], "types": ["node", "@cloudflare/workers-types"] },
-  "include": ["vite.config.ts", "vitest.config.ts", "tests/**/*.test.ts"]
+  "compilerOptions": { "lib": ["ES2022"], "types": ["node", "@cloudflare/workers-types", "@cloudflare/vitest-plugin/types"] },
+  "include": ["vite.config.ts", "vitest*.config.ts", "tests/**/*.test.ts", "probes/runtime/**/*.ts"]
 }

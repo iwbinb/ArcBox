@@ -7,7 +7,7 @@ export function validateManifest(pkg, lock, tc) {
   assert.equal(pkg.engines?.pnpm, tc.pnpm);
   assert.equal(lock.lockfileVersion, '9.0');
   assert.equal(lock.settings?.autoInstallPeers, false);
-  assert.deepEqual(pkg.dependencies ?? {}, {}, 'M0-B has no product dependencies.');
+  assert.deepEqual(pkg.dependencies ?? {}, {}, 'M0 probes have no product dependencies.');
   assert.deepEqual(pkg.devDependencies, tc.dependencies);
   const importer = lock.importers?.['.']?.devDependencies;
   assert.deepEqual(Object.keys(importer ?? {}).sort(), Object.keys(tc.dependencies).sort());
@@ -27,14 +27,14 @@ export function validateWorkflow(workflow, pins) {
   assert.deepEqual(workflow.permissions, { contents: 'read' });
   assert.deepEqual(Object.keys(workflow.on).sort(), ['pull_request', 'push', 'workflow_dispatch']);
   assert.deepEqual(workflow.on.pull_request.branches, ['main']);
-  assert.deepEqual(workflow.on.push.branches, ['main', 'feat/m0-b-toolchain']);
+  assert.deepEqual(workflow.on.push.branches, ['main', 'feat/m0-b-toolchain', 'feat/m0-c-runtime']);
   assert.equal(workflow.concurrency?.['cancel-in-progress'], true);
   assert.ok(workflow.jobs.required && workflow.jobs['arc-readonly']);
   for (const job of Object.values(workflow.jobs)) {
     assert.equal(job['runs-on'], 'ubuntu-24.04');
     assert.ok(job['timeout-minutes'] > 0 && job['timeout-minutes'] <= 15);
     assert.equal(job.permissions, undefined, 'Job cannot elevate permissions.');
-    assert.equal(job.environment, undefined, 'M0-B cannot bind a deployment environment.');
+    assert.equal(job.environment, undefined, 'M0 local checks cannot bind a deployment environment.');
     assert.equal(job['continue-on-error'], undefined);
     assert.equal(job.needs, undefined, 'Required and network jobs must be independent.');
     for (const step of job.steps) {
