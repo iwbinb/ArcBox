@@ -3,7 +3,7 @@ name: ArcBox M0 smoke
 # Branch-scoped validation only. No deployments, secrets, signing or transfers.
 on:
   push:
-    branches: [main, feat/m0-validation]
+    branches: [main, dev]
     paths:
       - .github/workflows/m0-smoke.yml
       - scripts/m0/**
