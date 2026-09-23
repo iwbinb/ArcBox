@@ -146,7 +146,7 @@ test('R2-02 authorized fetch returns only its private fixture, never public cach
   expect(response.status).toBe(200);
   expect(response.headers.get('cache-control')).toBe('no-store');
   expect(response.headers.get('content-type')).toBe('application/octet-stream');
-  expect(await response.text()).toBe(f.body);
+  expect(new TextDecoder().decode(await response.arrayBuffer())).toBe(f.body);
 });
 test('R2-03 absent, forged and exactly-expired sessions cannot read objects', async () => {
   const f = await fileFixture();
@@ -210,7 +210,9 @@ test('QUE-02 unresolved dependency requests retry and never acks success', async
   const { messageId, result } = await batchFor({ schemaVersion: 1, effectKey: `event:${id()}` });
   expect(result.explicitAcks).not.toContain(messageId);
   expect(result.retryMessages).toHaveLength(1);
-  expect(result.retryMessages[0]).toMatchObject({ msgId: messageId, delaySeconds: 1 });
+  // This pinned helper reports message IDs, not per-message delay metadata.
+  // Actual broker redelivery and retry limits are independently tested below.
+  expect(result.retryMessages[0]).toEqual({ msgId: messageId });
 });
 test('QUE-03 malformed message is durably rejected without raw body logging', async () => {
   const { messageId, result } = await batchFor({ schemaVersion: 1, effectKey: 'bad', amount: 'forged' });
