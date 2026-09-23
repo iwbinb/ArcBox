@@ -89,3 +89,26 @@ jobs:
               printf 'No SDK report was produced.\n'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+  m1a-visual:
+    name: M1-A visual baseline build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - name: Install fixed visual-prototype dependencies
+        run: npm ci --prefix design/m1-a --no-audit --no-fund
+      - name: Build isolated M1-A prototype
+        run: npm run build --prefix design/m1-a
+      - name: Check prototype package without deployment
+        run: npm run test:sites --prefix design/m1-a
+      - name: Confirm source and lockfiles remain unchanged
+        run: |
+          git diff --exit-code
+          test -z "$(git ls-files --others --exclude-standard)"
