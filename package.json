@@ -11,11 +11,16 @@
     "test:runtime": "vite build && vitest run --config vitest.config.ts",
     "test:bindings": "vitest run --config vitest.bindings.config.ts",
     "test:assets": "pnpm build && node --test --test-reporter=tap tests/assets.integration.test.mjs",
-    "test": "pnpm test:unit && pnpm test:runtime && pnpm test:bindings && pnpm test:assets",
+    "test:arc": "node scripts/m0/verify-arc.mjs",
+    "test": "pnpm test:unit && pnpm test:runtime && pnpm test:bindings && pnpm test:assets && pnpm test:arc",
     "build": "node scripts/toolchain/build.mjs",
     "build:contracts": "node scripts/toolchain/compile-contract.mjs",
-    "verify": "node scripts/toolchain/verify.mjs",
-    "probe:arc": "node scripts/m0/probe-arc.mjs --network testnet"
+    "build:arc": "node scripts/m0/compile-arc.mjs",
+    "setup:arc": "node scripts/toolchain/setup-arc-foundry.mjs",
+    "verify": "node scripts/toolchain/verify.mjs && node scripts/m0/verify-arc.mjs",
+    "probe:arc": "node scripts/m0/probe-arc.mjs --network testnet",
+    "probe:arc:sdk": "node scripts/m0/probe-arc-sdk.mjs",
+    "probe:arc:write": "node scripts/m0/arc-testnet-write.mjs"
   },
   "devDependencies": {
     "typescript": "5.9.3",
@@ -28,6 +33,8 @@
     "solc": "0.8.37",
     "yaml": "2.9.1",
     "@vitest/runner": "4.1.11",
-    "@vitest/snapshot": "4.1.11"
+    "@vitest/snapshot": "4.1.11",
+    "viem": "2.56.8",
+    "@openzeppelin/contracts": "5.6.1"
   }
 }

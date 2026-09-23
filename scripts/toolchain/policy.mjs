@@ -26,8 +26,8 @@ export function validateManifest(pkg, lock, tc) {
 export function validateWorkflow(workflow, pins) {
   assert.deepEqual(workflow.permissions, { contents: 'read' });
   assert.deepEqual(Object.keys(workflow.on).sort(), ['pull_request', 'push', 'workflow_dispatch']);
-  assert.deepEqual(workflow.on.pull_request.branches, ['main']);
-  assert.deepEqual(workflow.on.push.branches, ['main', 'feat/m0-b-toolchain', 'feat/m0-c-runtime']);
+  assert.deepEqual(workflow.on.pull_request.branches, ['main', 'dev']);
+  assert.deepEqual(workflow.on.push.branches, ['main', 'dev', 'feat/m0-b-toolchain', 'feat/m0-c-runtime', 'feat/m0-d-arc-compatibility']);
   assert.equal(workflow.concurrency?.['cancel-in-progress'], true);
   assert.ok(workflow.jobs.required && workflow.jobs['arc-readonly']);
   for (const job of Object.values(workflow.jobs)) {
@@ -50,5 +50,6 @@ export function validateWorkflow(workflow, pins) {
   const text = JSON.stringify(workflow);
   assert.ok(!text.includes('secrets.'), 'No production/custom secrets in this workflow.');
   assert.ok(!text.includes('pull_request_target'));
+  assert.ok(!text.includes('arc-testnet-write') && !text.includes('probe:arc:write'), 'Live writes are not part of automatic CI.');
   // Regression guard, not a proof that arbitrary future shell code is safe.
 }
