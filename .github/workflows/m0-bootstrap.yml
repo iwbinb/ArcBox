@@ -10,22 +10,54 @@ concurrency:
 jobs:
   inspect:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
-      - name: Inspect official package metadata (no install, no secrets)
+      - name: Resolve candidate lock once (no repository writes)
         shell: bash
         run: |
-          node --version
+          test "$(node --version)" = v22.23.2
+          mkdir -p "$RUNNER_TEMP/arcbox-lock"
+          cd "$RUNNER_TEMP/arcbox-lock"
           node --input-type=module <<'NODE'
-          const names = ['pnpm','typescript','vite','vitest','@cloudflare/vitest-plugin','wrangler','@cloudflare/workers-types','@types/node','solc','yaml'];
-          for (const name of names) {
-            const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/latest`, {signal: AbortSignal.timeout(20000)});
-            if (!res.ok) throw new Error(`${name}: ${res.status}`);
-            const p = await res.json();
-            console.log('PACKAGE ' + JSON.stringify({name, version:p.version, engines:p.engines, peers:p.peerDependencies, dependencies:p.dependencies, integrity:p.dist.integrity}));
+          import {writeFileSync} from 'node:fs';
+          import {createHash} from 'node:crypto';
+          import {execFileSync} from 'node:child_process';
+          async function metadata(name, selector) {
+            const r = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}`, {signal:AbortSignal.timeout(30000)});
+            if(!r.ok) throw new Error(`${name}:${r.status}`);
+            const pack = await r.json();
+            const versions = Object.keys(pack.versions).filter(v=>/^\d+\.\d+\.\d+$/.test(v) && selector(v) && Date.parse(pack.time[v]) < Date.parse('2026-09-22T00:00:00Z'));
+            versions.sort((a,b)=>{const aa=a.split('.').map(Number),bb=b.split('.').map(Number); for(let i=0;i<3;i++){if(aa[i]!==bb[i]) return bb[i]-aa[i];} return 0;});
+            if(!versions.length) throw new Error(`NO_MATURE_VERSION:${name}`);
+            const p = pack.versions[versions[0]];
+            console.log('SELECTED '+JSON.stringify({name,version:p.version,published:pack.time[p.version],engines:p.engines,peers:p.peerDependencies,integrity:p.dist.integrity}));
+            return p;
           }
-          const res = await fetch('https://nodejs.org/dist/index.json', {signal: AbortSignal.timeout(20000)});
-          if (!res.ok) throw new Error('NODE_INDEX_UNAVAILABLE');
-          const releases = (await res.json()).filter(p=>p.version.startsWith('v22.')).slice(0,3);
-          console.log('NODE22_RELEASES ' + JSON.stringify(releases));
+          const pm=await metadata('pnpm',v=>v.startsWith('10.'));
+          const ts=await metadata('typescript',v=>v==='5.9.3');
+          const vite=await metadata('vite',v=>v.startsWith('7.'));
+          const vitest=await metadata('vitest',v=>v.startsWith('4.'));
+          const cf=await metadata('@cloudflare/vitest-plugin',v=>v==='1.2.3');
+          const wrangler=await metadata('wrangler',v=>v===cf.dependencies.wrangler);
+          const wt=await metadata('@cloudflare/workers-types',v=>v==='5.20260921.1');
+          const nt=await metadata('@types/node',v=>v.startsWith('22.'));
+          const solc=await metadata('solc',v=>v==='0.8.37');
+          const yaml=await metadata('yaml',v=>v==='2.9.1');
+          const deps=Object.fromEntries([ts,vite,vitest,cf,wrangler,wt,nt,solc,yaml].map(p=>[p.name,p.version]));
+          deps['@vitest/runner']=vitest.version;
+          deps['@vitest/snapshot']=vitest.version;
+          const pkg={name:'arcbox',version:'0.0.0',private:true,type:'module',packageManager:`pnpm@${pm.version}`,engines:{node:'22.23.2',pnpm:pm.version},devDependencies:deps};
+          writeFileSync('package.json',JSON.stringify(pkg,null,2)+'\n');
+          writeFileSync('pnpm-workspace.yaml','packages: []\nstrictPeerDependencies: true\nautoInstallPeers: false\nonlyBuiltDependencies:\n  - esbuild\n  - workerd\n');
+          const bytes=Buffer.from(await (await fetch(pm.dist.tarball,{signal:AbortSignal.timeout(30000)})).arrayBuffer());
+          const sri='sha512-'+createHash('sha512').update(bytes).digest('base64');
+          if(sri!==pm.dist.integrity) throw new Error('PNPM_INTEGRITY_MISMATCH');
+          writeFileSync('pnpm.tgz',bytes);
+          execFileSync('tar',['-xzf','pnpm.tgz']);
+          execFileSync(process.execPath,['package/bin/pnpm.cjs','install','--lockfile-only','--ignore-scripts'],{stdio:'inherit',timeout:180000});
+          console.log('MANIFEST_START\n'+JSON.stringify(pkg,null,2)+'\nMANIFEST_END');
+          console.log('LOCK_START');
+          console.log((await import('node:fs')).readFileSync('pnpm-lock.yaml','utf8'));
+          console.log('LOCK_END');
+          console.log('LOCK_SHA256 '+createHash('sha256').update((await import('node:fs')).readFileSync('pnpm-lock.yaml')).digest('hex'));
           NODE
