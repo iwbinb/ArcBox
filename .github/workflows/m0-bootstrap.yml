@@ -1,0 +1,31 @@
+name: M0-B one-time dependency inspection
+on:
+  push:
+    branches: [feat/m0-b-toolchain]
+    paths: [.github/workflows/m0-bootstrap.yml]
+permissions: {}
+concurrency:
+  group: m0-b-bootstrap
+  cancel-in-progress: true
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Inspect official package metadata (no install, no secrets)
+        shell: bash
+        run: |
+          node --version
+          node --input-type=module <<'NODE'
+          const names = ['pnpm','typescript','vite','vitest','@cloudflare/vitest-plugin','wrangler','@cloudflare/workers-types','@types/node','solc','yaml'];
+          for (const name of names) {
+            const res = await fetch(`https://registry.npmjs.org/${encodeURIComponent(name)}/latest`, {signal: AbortSignal.timeout(20000)});
+            if (!res.ok) throw new Error(`${name}: ${res.status}`);
+            const p = await res.json();
+            console.log('PACKAGE ' + JSON.stringify({name, version:p.version, engines:p.engines, peers:p.peerDependencies, dependencies:p.dependencies, integrity:p.dist.integrity}));
+          }
+          const res = await fetch('https://nodejs.org/dist/index.json', {signal: AbortSignal.timeout(20000)});
+          if (!res.ok) throw new Error('NODE_INDEX_UNAVAILABLE');
+          const releases = (await res.json()).filter(p=>p.version.startsWith('v22.')).slice(0,3);
+          console.log('NODE22_RELEASES ' + JSON.stringify(releases));
+          NODE
