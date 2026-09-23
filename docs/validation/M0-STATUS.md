@@ -25,10 +25,10 @@
 | M0-A：GitHub/Actions 与只读探针 | PASS_CI_READONLY | [运行35820224910](https://github.com/iwbinb/ArcBox/actions/runs/35820224910)，27项离线fixture+6项测试网只读；没有签名/转账 |
 | M0-B：工具链与 CI | PASS_CI，PR #2 已合并 | [验收报告](M0-B-STATUS.md)、[复现说明](TOOLCHAIN.md)、[PR #2](https://github.com/iwbinb/ArcBox/pull/2) |
 | M0-C：绑定与运行时语义 | PASS_LOCAL_CI，PR #3 已合并 | [验收报告](M0-C-STATUS.md)、[探针说明](RUNTIME-PROBES.md)、[PR #3](https://github.com/iwbinb/ArcBox/pull/3)；新增41项+回归47项通过，合并基线ca2a26f |
-| M0-D：Arc 兼容性开发与实际交易 | 开发和本地CI通过；BLOCKED_PERSISTENT_TEST_SIGNER | [开发报告](M0-D-STATUS.md)、[复现与边界](ARC-COMPATIBILITY.md)、[最终本地复验](https://github.com/iwbinb/ArcBox/pull/4#issuecomment-5791656905)；128项本地测试通过，公开测试网新签名交易仍未执行 |
+| M0-D：Arc 兼容性开发与实际交易 | 开发和本地CI通过；PENDING_SIGNER_PREFLIGHT_AND_FUNDING | [开发报告](M0-D-STATUS.md)、[复现与边界](ARC-COMPATIBILITY.md)、[最终本地复验](https://github.com/iwbinb/ArcBox/pull/4#issuecomment-5791656905)；128项历史本地测试通过，公开测试网新签名交易仍未执行 |
 | M0-E：技术验证收口 | NOT_RUN | M0-D真实测试网证据齐全后再综合审查 |
 
-执行计划仍为 [v1.1](../delivery/01-CODEX-PLAN.md)。本轮只整合分支，不进入 M0-E 或 M1。PR #4 指向 main 的状态不因代码进入 dev 而被当作已合并或已验收。
+执行计划仍为 [v1.1](../delivery/01-CODEX-PLAN.md)。先前分支整合没有进入 M0-E 或 M1；PR #4 指向 main 的状态不因代码进入 dev 而被当作已合并或已验收。
 
 ## M0-D 当前阻塞与授权
 
@@ -36,7 +36,11 @@
 
 [只读核验与阻塞记录](https://github.com/iwbinb/ArcBox/pull/4#issuecomment-5791882456)记录：旧地址 `0x6559E5550B0826D56b8052eec683F508a4090890` 在区块63565795观测到20测试USDC，nonce为0；这不是本轮新的余额查询。此前临时工作区的私钥已不在可访问环境，旧地址停止用于后续测试，不再向其转入任何资产。
 
-剩余工作是先落实用户控制、可持续使用的专用测试签名钱包与受保护执行配置，再核对地址/签名、领取测试币、补齐公开测试网写入证据。私钥和助记词不进入聊天、普通变量、工作流正文或公开仓库。已授权上限保持：单次资产移动不超过0.01测试USDC、单笔Gas不超过0.25、整次Gas不超过2测试USDC、最多12笔。此次分支合并不执行上述交易。
+2026-09-23 接续：已生成新的专用测试钱包，公开地址为 `0x20E31f11Aaf66420765969f98Dbd2Bad47Fc1b98`；本机离线签名和地址恢复匹配。私钥持久保存于本机登录钥匙串的 `ArcBox M0-D Arc Testnet Wallet` 条目，并写入 GitHub `arcbox_testnet` 环境的 `ARCBOX_TESTNET_PRIVATE_KEY` Secret；公开地址写入该环境的 `ARCBOX_TESTNET_EXPECTED_ADDRESS` Variable。该环境只允许 `dev`，且需 `iwbinb` 审批；同一 GitHub 账号的审批不构成独立双人审查。
+
+[只读钱包检查 35852286276](https://github.com/iwbinb/ArcBox/actions/runs/35852286276) 在提交 `774d355` 上通过：Arc 测试网 chainId 为 5042002，区块 63581751 的公开地址余额为 0 测试 USDC、确认与待处理 nonce 均为 0。它不访问 GitHub Secret，不能证明受保护环境中的密钥可用。受保护签名工作流预检仍未运行、尚未领取测试币或发送新交易，不能据此标记 M0-D 通过。
+
+剩余工作是先运行受保护的签名和只读网络预检，再领取测试币、核对到账，最后补齐公开测试网写入证据。私钥和助记词不进入聊天、普通变量、工作流正文或公开仓库。已授权上限保持：单次资产移动不超过0.01测试USDC、单笔Gas不超过0.25、整次Gas不超过2测试USDC、最多12笔。
 
 ## 历史证据边界
 

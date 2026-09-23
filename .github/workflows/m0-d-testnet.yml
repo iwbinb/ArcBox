@@ -1,0 +1,68 @@
+name: M0-D protected Arc testnet
+
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: Preflight only, or run the bounded public-testnet probe
+        required: true
+        type: choice
+        options: [preflight, execute]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arcbox-m0d-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  protected:
+    if: github.ref == 'refs/heads/dev'
+    environment: arcbox_testnet
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - name: Pin execution to the approved dev commit
+        run: |
+          test "$GITHUB_REF" = 'refs/heads/dev'
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - run: node scripts/toolchain/setup-pnpm.mjs
+      - name: Install fixed dependencies without lifecycle scripts
+        run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Verify dedicated signer and read-only network state
+        env:
+          ARCBOX_TESTNET_PHASE: ${{ inputs.phase }}
+          ARCBOX_TESTNET_CONFIRM: M0-D-TESTNET-ONLY
+          ARCBOX_TESTNET_PRIVATE_KEY: ${{ secrets.ARCBOX_TESTNET_PRIVATE_KEY }}
+          ARCBOX_TESTNET_EXPECTED_ADDRESS: ${{ vars.ARCBOX_TESTNET_EXPECTED_ADDRESS }}
+        run: node scripts/m0/arc-testnet-preflight.mjs
+      - name: Compile the two fixed probes
+        if: inputs.phase == 'execute'
+        run: pnpm build:arc
+      - name: Execute the bounded public-testnet scenario
+        if: inputs.phase == 'execute'
+        env:
+          ARCBOX_TESTNET_CONFIRM: M0-D-TESTNET-ONLY
+          ARCBOX_TESTNET_PRIVATE_KEY: ${{ secrets.ARCBOX_TESTNET_PRIVATE_KEY }}
+          ARCBOX_TESTNET_EXPECTED_ADDRESS: ${{ vars.ARCBOX_TESTNET_EXPECTED_ADDRESS }}
+        run: pnpm probe:arc:write
+      - name: Preserve public transaction evidence for review and recovery
+        if: always() && inputs.phase == 'execute'
+        run: |
+          echo '## Public testnet execution record' >> "$GITHUB_STEP_SUMMARY"
+          report=$(find .toolchain/live-runs -maxdepth 2 -type f -name report.json -print -quit 2>/dev/null || true)
+          if [[ -n "$report" ]]; then
+            printf '\n```json\n' >> "$GITHUB_STEP_SUMMARY"
+            cat "$report" >> "$GITHUB_STEP_SUMMARY"
+            printf '\n```\n' >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'No transaction report was created; no result is claimed.' >> "$GITHUB_STEP_SUMMARY"
+          fi
