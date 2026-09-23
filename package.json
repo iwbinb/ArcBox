@@ -1,0 +1,31 @@
+{
+  "name": "arcbox",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.5",
+  "engines": { "node": "22.23.2", "pnpm": "10.34.5" },
+  "scripts": {
+    "check": "node scripts/toolchain/check.mjs && tsc -p tsconfig.web.json && tsc -p tsconfig.worker.json && tsc -p tsconfig.tools.json",
+    "test:unit": "node --test --test-reporter=tap scripts/m0/probe-arc.test.mjs tests/toolchain.test.mjs",
+    "test:runtime": "vite build && vitest run --config vitest.config.ts",
+    "test": "pnpm test:unit && pnpm test:runtime",
+    "build": "node scripts/toolchain/build.mjs",
+    "build:contracts": "node scripts/toolchain/compile-contract.mjs",
+    "verify": "node scripts/toolchain/verify.mjs",
+    "probe:arc": "node scripts/m0/probe-arc.mjs --network testnet"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vite": "7.3.6",
+    "vitest": "4.1.11",
+    "@cloudflare/vitest-plugin": "1.2.1",
+    "wrangler": "4.136.1",
+    "@cloudflare/workers-types": "5.20260921.1",
+    "@types/node": "22.20.4",
+    "solc": "0.8.37",
+    "yaml": "2.9.1",
+    "@vitest/runner": "4.1.11",
+    "@vitest/snapshot": "4.1.11"
+  }
+}

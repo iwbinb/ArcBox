@@ -1,0 +1,31 @@
+/** Install the pinned package manager from a verified tarball; no repository credentials. */
+import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, appendFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { execFileSync } from 'node:child_process';
+
+const tc = JSON.parse(readFileSync('toolchain.json', 'utf8'));
+if (process.versions.node !== tc.node) throw new Error(`NODE_VERSION_MISMATCH: need ${tc.node}`);
+if (!/^10\.\d+\.\d+$/.test(tc.pnpm)) throw new Error('Unexpected package-manager version.');
+const target = mkdtempSync(join(process.env.RUNNER_TEMP ?? tmpdir(), 'arcbox-pnpm-'));
+const url = `https://registry.npmjs.org/pnpm/-/pnpm-${tc.pnpm}.tgz`;
+const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(30_000) });
+if (!response.ok) throw new Error(`PNPM_DOWNLOAD_HTTP_${response.status}`);
+const bytes = Buffer.from(await response.arrayBuffer());
+if (bytes.length > 20_000_000) throw new Error('PNPM_ARCHIVE_TOO_LARGE');
+const actual = 'sha512-' + createHash('sha512').update(bytes).digest('base64');
+if (actual !== tc.pnpmIntegrity) throw new Error('PNPM_INTEGRITY_MISMATCH');
+const archive = join(target, 'pnpm.tgz');
+writeFileSync(archive, bytes);
+execFileSync('tar', ['-xzf', archive, '-C', target], { timeout: 20_000 });
+const bin = join(target, 'bin');
+mkdirSync(bin);
+const program = resolve(target, 'package/bin/pnpm.cjs');
+if (program.includes("'") || program.includes('\n')) throw new Error('Unsafe temporary path.');
+writeFileSync(join(bin, 'pnpm'), `#!/bin/sh\nexec node '${program}' "$@"\n`, { mode: 0o755 });
+const version = execFileSync(process.execPath, [program, '--version'], { encoding: 'utf8', timeout: 10_000 }).trim();
+if (version !== tc.pnpm) throw new Error('PNPM_INSTALLED_VERSION_MISMATCH');
+if (process.env.GITHUB_PATH) appendFileSync(process.env.GITHUB_PATH, bin + '\n');
+console.log(`PNPM_VERIFIED version=${version} integrity=${actual}`);
+console.log(`For this local shell: export PATH="${bin}:$PATH"`);
