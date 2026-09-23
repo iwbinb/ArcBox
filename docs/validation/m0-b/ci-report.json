@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "stage": "M0-B",
+  "startedAt": "2026-09-23T06:14:50.527Z",
+  "sourceSha": "febce62a21c8a3b127cdc4ad2465da9662fd6506",
+  "event": "push",
+  "triggerSha": "febce62a21c8a3b127cdc4ad2465da9662fd6506",
+  "prHeadSha": null,
+  "runId": "35825856375",
+  "node": "v22.23.2",
+  "lockSha256": "1f28da280847509789c0b82ab52bd87e27c62c60e20c0c2c7c67d9b2bb7b9b05",
+  "status": "PASS",
+  "steps": [
+    { "name": "static-and-types", "status": "PASS", "exitCode": 0, "signal": null, "error": null, "durationMs": 3766 },
+    { "name": "unit-and-negative-controls", "status": "PASS", "exitCode": 0, "signal": null, "error": null, "durationMs": 2328 },
+    { "name": "builds", "status": "PASS", "exitCode": 0, "signal": null, "error": null, "durationMs": 3766 },
+    { "name": "workerd-smoke", "status": "PASS", "exitCode": 0, "signal": null, "error": null, "durationMs": 2696 }
+  ],
+  "tests": {
+    "node": { "total": 46, "passed": 46, "failed": 0, "skipped": 0 },
+    "workerd": { "total": 1, "passed": 1, "failed": 0, "pending": 0 }
+  },
+  "deployed": false,
+  "completedAt": "2026-09-23T06:15:03.088Z",
+  "notVerified": [
+    "M0-C D1/R2/Queues semantics",
+    "M0-D signed transactions and EVM execution",
+    "Cloudflare cloud resources",
+    "Production readiness or contract security"
+  ]
+}

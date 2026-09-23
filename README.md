@@ -4,7 +4,7 @@
 
 ArcBox 是面向创作者、小团队、活动组织者的 **Arc / USDC 工具集合站**。六个工具能独立使用，也能通过订单、交付权限和已结算收入组合使用。它不是单一支付产品，也不是跳转到第三方的工具导航站；品牌不绑定 NodeStake。
 
-> **文档基线：产品设计规格 v1.0；全阶段开发与部署总计划 v1.1，2026-09-23。不是已经开发或部署的应用。**
+> **文档基线：产品设计规格 v1.0；全阶段开发与部署总计划 v1.1，2026-09-23。当前增加 M0-B 工具链与 CI 编译探针，不是已经部署的产品应用。**
 > 文档包含产品、页面、交互、六工具业务规则、合约边界、数据/API、Cloudflare 部署、安全、测试和分阶段开发计划。示例均为模拟数据；不代表真实用户、交易、安全审计或获奖承诺。
 
 ## 六个工具
@@ -27,8 +27,20 @@ ArcBox 是面向创作者、小团队、活动组织者的 **Arc / USDC 工具�
 5. [Cloudflare 部署](docs/architecture/04-CLOUDFLARE-DEPLOYMENT.md) · [安全与运维](docs/architecture/05-SECURITY-AND-OPERATIONS.md)
 6. **[全阶段开发与部署总计划 v1.1](docs/delivery/01-CODEX-PLAN.md)** · [验收清单](docs/delivery/02-TEST-AND-ACCEPTANCE.md) · [演示与参赛](docs/delivery/03-DEMO-AND-SUBMISSION.md)
 7. [决策记录](docs/06-DECISIONS.md) · [来源与待验证假设](docs/research/SOURCES-AND-ASSUMPTIONS.md)
+8. **[M0-B 验收报告](docs/validation/M0-B-STATUS.md)** · [工具链与复现](docs/validation/TOOLCHAIN.md) · [M0 进度](docs/validation/M0-STATUS.md)
 
-开发者先读 [AGENTS.md](AGENTS.md) 和总计划 v1.1。执行拆分为 **M0—M10 共 11 个开发阶段 + D0—D3 共 4 个部署检查点**，每轮只完成一个明确子阶段，测试、提交、汇报后停止。下一项为 **M0-B：开发工具链与 CI 基线**；完整 M0 尚未通过，当前文档更新不代表开始下一阶段或批准主网操作。
+开发者先读 [AGENTS.md](AGENTS.md) 和总计划 v1.1。执行拆分为 **M0—M10 共 11 个开发阶段 + D0—D3 共 4 个部署检查点**，每轮只完成一个明确子阶段，测试、提交、汇报后停止。M0-B 已有 CI 验证记录；下一项为 **M0-C：Workers 运行时与 D1/R2/Queues 最小验证**。完整 M0 尚未通过，本轮未开始 M0-C 或批准主网操作。
+
+## 工具链复现
+
+先使用 `.node-version` 的 Node 22.23.2 和 `packageManager` 指定的 pnpm 10.34.5，再运行：
+
+```bash
+pnpm install --frozen-lockfile
+pnpm verify
+```
+
+没有 pnpm 时参照 [工具链说明](docs/validation/TOOLCHAIN.md)。`pnpm verify` 执行静态/类型检查、单元测试、Vite/Worker/Solidity 编译探针和一个 workerd 启动测试；不会部署或转账。Arc 测试网只读检查使用独立命令 `pnpm probe:arc`。`apps/web` 当前仅为明确标识的编译探针，不是正式网站 UI。
 
 ## 架构基线
 
