@@ -4,7 +4,7 @@
 
 ArcBox 是面向创作者、小团队、活动组织者的 **Arc / USDC 工具集合站**。六个工具能独立使用，也能通过订单、交付权限和已结算收入组合使用。它不是单一支付产品，也不是跳转到第三方的工具导航站；品牌不绑定 NodeStake。
 
-> **文档基线：产品设计规格 v1.0；全阶段开发与部署总计划 v1.1，2026-09-23。M0-B 工具链已合并，M0-C 本地运行时验证已有通过记录；不是已经部署的产品应用。**
+> **文档基线：产品设计规格 v1.0；全阶段开发与部署总计划 v1.1，2026-09-23。M0-B / M0-C 已合并；M0-D 开发、本地执行和公开测试网只读验证已通过，公开测试网写入尚未执行。不是已经部署的产品应用。**
 > 文档包含产品、页面、交互、六工具业务规则、合约边界、数据/API、Cloudflare 部署、安全、测试和分阶段开发计划。示例均为模拟数据；不代表真实用户、交易、安全审计或获奖承诺。
 
 ## 六个工具
@@ -28,28 +28,32 @@ ArcBox 是面向创作者、小团队、活动组织者的 **Arc / USDC 工具�
 6. **[全阶段开发与部署总计划 v1.1](docs/delivery/01-CODEX-PLAN.md)** · [验收清单](docs/delivery/02-TEST-AND-ACCEPTANCE.md) · [演示与参赛](docs/delivery/03-DEMO-AND-SUBMISSION.md)
 7. [决策记录](docs/06-DECISIONS.md) · [来源与待验证假设](docs/research/SOURCES-AND-ASSUMPTIONS.md)
 8. [M0-B 验收报告](docs/validation/M0-B-STATUS.md) · [工具链与复现](docs/validation/TOOLCHAIN.md)
-9. **[M0-C 验收报告](docs/validation/M0-C-STATUS.md)** · [运行时探针与用例矩阵](docs/validation/RUNTIME-PROBES.md) · [M0 进度](docs/validation/M0-STATUS.md)
+9. [M0-C 验收报告](docs/validation/M0-C-STATUS.md) · [运行时探针与用例矩阵](docs/validation/RUNTIME-PROBES.md)
+10. **[M0-D 开发与验证状态](docs/validation/M0-D-STATUS.md)** · [Arc 探针复现及边界](docs/validation/ARC-COMPATIBILITY.md) · [M0 进度](docs/validation/M0-STATUS.md)
 
-开发者先读 [AGENTS.md](AGENTS.md) 和总计划 v1.1。执行拆分为 **M0—M10 共 11 个开发阶段 + D0—D3 共 4 个部署检查点**，每轮只完成一个明确子阶段，测试、提交、汇报后停止。M0-B 已通过并合并；M0-C 新增 41 项本地运行时/HTTP 测试，与原有 47 项回归均通过，交付待 PR 审查合并。完整 M0 尚未通过；下一项 **M0-D：Arc 最小真实兼容验证** 需先确认专用测试钱包与测试币操作范围，本轮不执行链上写操作。
+开发者先读 [AGENTS.md](AGENTS.md) 和总计划 v1.1。执行拆分为 **M0—M10 共 11 个开发阶段 + D0—D3 共 4 个部署检查点**，每轮只完成一个明确子阶段，测试、提交、汇报后停止。M0-D 新增 40 项本地防护/EVM 测试，加上原有 88 项回归均通过；另有独立真实测试网只读观察。**M0-D 完整验收和整个 M0 尚未通过。下一项仍是经确认后补齐 M0-D 公开测试网写交易，不进入 M0-E。**
 
-## 工具链与运行时复现
+## 工具链、运行时与 Arc 探针复现
 
-先使用 `.node-version` 的 Node 22.23.2 和 `packageManager` 指定的 pnpm 10.34.5，再运行：
+使用 `.node-version` 的 Node 22.23.2 和 `packageManager` 指定的 pnpm 10.34.5。在当前已验证的 Linux x64 环境中运行：
 
 ```bash
 pnpm install --frozen-lockfile
+pnpm setup:arc
 pnpm verify
 ```
 
-没有 pnpm 时参照 [工具链说明](docs/validation/TOOLCHAIN.md)。`pnpm verify` 执行静态/类型检查、Node 单元测试、Vite/Worker/Solidity 编译、workerd 启动与 D1/R2/Queues 本地绑定测试，以及实际构建产物的 Assets 路由测试；不会部署或转账。可用 `pnpm test:bindings`、`pnpm test:assets` 单独检查新增部分。报告保存准确源码 SHA、结果与锁文件哈希。
+没有 pnpm 时参照 [工具链说明](docs/validation/TOOLCHAIN.md)。`setup:arc` 校验并安装固定 Arc 本地执行器；`verify` 执行静态/类型检查、原 Node/Workers/Assets 回归、Arc 探针编译、防护与本地 Arc EVM 测试。不会创建 Cloudflare 资源或广播公开链交易；本地测试链中的签名与交易执行是本轮实际验证的一部分。
 
-Arc 测试网只读检查使用独立命令 `pnpm probe:arc`。`apps/web` 当前仅为明确标识的编译探针，不是正式网站 UI；本地绑定通过不代表真实 Cloudflare 账号的资源、限额或 S3 签名访问已经验证。
+`pnpm test:bindings`、`pnpm test:assets`、`pnpm test:arc` 可分别运行。公开测试网只读命令为 `pnpm probe:arc` 和 `pnpm probe:arc:sdk`，后者检查有界历史回执，不发送新交易。公开写入口默认关闭且不接入常驻 CI，须先确认专用钱包、测试币与限额。
+
+`apps/web` 当前仅为明确标识的编译探针，不是正式网站 UI。本地绑定/Arc 执行通过不代表 Cloudflare 云资源、公开链写入或生产安全已验证。报告记录准确源码 SHA、范围和未测项。
 
 ## 架构基线
 
 **Cloudflare Workers + Static Assets** 承载网站和 API；D1 保存业务配置及链上状态索引，私有 R2 保存交付文件，Queues/Cron 处理异步任务。资金规则部署到 Arc 的独立合约实例。**首版不需要 VPS；Pages 不是本版默认部署路径。**
 
-应用金额只用 ERC-20 USDC 的 6 位精度，Gas 单独读取原生 18 位精度。网络、合约地址和运行行为必须在 M0 按官方资料与真实 RPC 重新验证，不能把旧教程、演示配置或对话中的例子直接当成部署结果。
+应用金额只用 ERC-20 USDC 的 6 位精度，Gas 单独读取原生 18 位精度。网络、合约地址和运行行为必须按官方资料与真实 RPC 验证，不能把旧教程、演示配置或对话中的例子直接当成部署结果。
 
 ## 交付与上线分开
 

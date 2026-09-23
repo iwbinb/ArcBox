@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "kind": "summary-extracted-from-read-ci-logs",
+  "stage": "M0-D",
+  "sourceSha": "b2c95666262ecc02e1505699203b459c9b225679",
+  "runId": 35836560258,
+  "runUrl": "https://github.com/iwbinb/ArcBox/actions/runs/35836560258",
+  "requiredJobId": 107101311674,
+  "readonlyJobId": 107101312005,
+  "jobsConclusion": "success",
+  "observedDate": "2026-09-23",
+  "localVerification": "PASS_LOCAL_ONLY",
+  "stageAcceptance": "BLOCKED_PUBLIC_TESTNET_WRITE_EVIDENCE",
+  "tests": {
+    "priorNode": 46,
+    "workerdSmoke": 1,
+    "workerBindings": 33,
+    "assetsHttp": 8,
+    "arcGuards": 32,
+    "arcLocalIntegration": 8,
+    "totalLocal": 128,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "legacyReadonlyChecks": 6,
+    "sdkReadonlyChecks": 7
+  },
+  "localScenario": {
+    "scope": "LOCAL_ARC_EXECUTION",
+    "status": "PASS_LOCAL_ARC",
+    "chainId": 31337,
+    "network": "arc",
+    "hardfork": "Zero8",
+    "checksInsideOneIntegrationTest": 12,
+    "signedTransactions": 9,
+    "totalGasFeeU18": "39159876000000000",
+    "unresolvedTransaction": false,
+    "note": "Local execution only; transactions are not on the public testnet."
+  },
+  "runtime": {
+    "release": "v0.8.0-2",
+    "archiveBytes": 82602629,
+    "archiveSha256": "088bdb96a84418b757f9825d491e702792f1d1d1e29a9145af305a6600a79556",
+    "binaryVersion": "anvil 1.7.1-dev",
+    "binaryCommit": "d497beea7096ff2a8e583c8b307941f24a61b06b"
+  },
+  "node": "22.23.2",
+  "pnpm": "10.34.5",
+  "viem": "2.56.8",
+  "openzeppelinContracts": "5.6.1",
+  "solc": "0.8.37+commit.f401782d.Emscripten.clang",
+  "arcEvmTarget": "osaka",
+  "arcCompileSourceHash": "31a03a557a054d1845e04a3aeaa9a1858716b027de78f83aaa1c9fbaad45fe7b",
+  "lockSha256": "107ca799fd9f6f3a351174fbf1e0b44a7f4d87fe5b9aa5d1f95e43b820bca075",
+  "publicReadonly": {
+    "chainId": 5042002,
+    "anchorBlock": "63562302",
+    "anchorHash": "0x88217f0b95078fa7620a42df2dc5672265212aa31f83c753aea000feed4c4069",
+    "scannedBlocks": 129,
+    "historicalReceiptSamples": [
+      "0x9f60fbfcc6a7371549097529ad046e2f4e6e0754f7832ca8f1c4a6f83fa3b8c0",
+      "0x6f304d7ca8d096ac4cc86d1f999b9cdccafd255d5bbaeb9b6ba8a23c795f9169",
+      "0x0f2c6954e7b41af94be1785a20599391af5228895b22fb404986223706d061ab"
+    ],
+    "pairedTransfersPerSample": 1,
+    "sentByArcBox": false
+  },
+  "publicTestnetWrites": "NOT_RUN_AUTHORIZATION_REQUIRED",
+  "cloudflareDeployed": false,
+  "mainnetWrites": false,
+  "mainModified": false,
+  "notVerified": [
+    "Authorized dedicated-wallet public-testnet deployment, approvals, transfers, signatures and receipts",
+    "Browser wallet and product SIWE flows",
+    "Public consensus/finality edge cases and real USDC blocklisting",
+    "Hosted Cloudflare resources",
+    "Production safety or audit"
+  ]
+}
