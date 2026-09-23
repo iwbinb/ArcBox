@@ -1,0 +1,87 @@
+name: M0-D wallet read-only preflight
+
+on:
+  push:
+    branches: [feat/m0-d-arc-compatibility]
+    paths: [.github/workflows/m0-d-wallet-preflight.yml]
+  workflow_dispatch:
+    inputs:
+      address:
+        description: Public testnet address to inspect; never enter a private key
+        required: true
+        type: string
+        default: '0x6559E5550B0826D56b8052eec683F508a4090890'
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - name: Read balances and nonce without a signer
+        env:
+          PUBLIC_ADDRESS: ${{ inputs.address || '0x6559E5550B0826D56b8052eec683F508a4090890' }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { appendFileSync } from 'node:fs';
+          const address = process.env.PUBLIC_ADDRESS;
+          assert.match(address, /^0x[0-9a-fA-F]{40}$/);
+          const allowed = new Set(['eth_chainId', 'eth_getBlockByNumber', 'eth_getBalance', 'eth_call', 'eth_getTransactionCount']);
+          let id = 0;
+          async function rpc(method, params = []) {
+            assert.ok(allowed.has(method), 'READ_ONLY_METHOD_REQUIRED');
+            const requestId = ++id;
+            const response = await fetch('https://rpc.testnet.arc.io', {
+              method: 'POST', redirect: 'error',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ jsonrpc: '2.0', id: requestId, method, params }),
+              signal: AbortSignal.timeout(12000),
+            });
+            assert.equal(response.ok, true, 'RPC_HTTP_FAILURE');
+            const body = await response.json();
+            assert.equal(body.jsonrpc, '2.0');
+            assert.equal(body.id, requestId);
+            assert.equal(Object.hasOwn(body, 'error'), false, 'RPC_RESPONSE_ERROR');
+            assert.ok(Object.hasOwn(body, 'result'));
+            return body.result;
+          }
+          const quantity = (value) => { assert.match(value, /^0x(?:0|[1-9a-fA-F][0-9a-fA-F]*)$/); return BigInt(value); };
+          const word = (value) => { assert.match(value, /^0x[0-9a-fA-F]{64}$/); return BigInt(value); };
+          assert.equal(quantity(await rpc('eth_chainId')), 5042002n);
+          const block = await rpc('eth_getBlockByNumber', ['latest', false]);
+          const blockNumber = quantity(block.number);
+          assert.match(block.hash, /^0x[0-9a-fA-F]{64}$/);
+          const token = '0x3600000000000000000000000000000000000000';
+          const decimals = word(await rpc('eth_call', [{ to: token, data: '0x313ce567' }, block.number]));
+          assert.equal(decimals, 6n);
+          const native = quantity(await rpc('eth_getBalance', [address, block.number]));
+          const balance = word(await rpc('eth_call', [{ to: token, data: '0x70a08231' + address.slice(2).padStart(64, '0') }, block.number]));
+          assert.equal(native / 1000000000000n, balance);
+          const nonceAtBlock = quantity(await rpc('eth_getTransactionCount', [address, block.number]));
+          const pendingNonce = quantity(await rpc('eth_getTransactionCount', [address, 'pending']));
+          const anchoredAgain = await rpc('eth_getBlockByNumber', [block.number, false]);
+          assert.equal(anchoredAgain.hash, block.hash);
+          const report = {
+            stage: 'M0-D', scope: 'PUBLIC_TESTNET_WALLET_READONLY',
+            status: 'PASS_READONLY', address, chainId: 5042002,
+            observedAt: new Date().toISOString(), sourceSha: process.env.GITHUB_SHA,
+            runId: process.env.GITHUB_RUN_ID, blockNumber: blockNumber.toString(), blockHash: block.hash,
+            nativeU18: native.toString(), erc20U6: balance.toString(),
+            balanceUSDC: `${balance / 1000000n}.${(balance % 1000000n).toString().padStart(6, '0')}`,
+            nonceAtBlock: nonceAtBlock.toString(), pendingNonce: pendingNonce.toString(),
+            fundingObserved: balance > 0n, signerAvailable: false, publicChainWrites: false,
+            note: 'Balance observation only. Does not prove private-key possession or identify the sender. Do not fund this retired address again.',
+          };
+          console.log('M0_D_WALLET_PREFLIGHT ' + JSON.stringify(report));
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, '# Testnet wallet read-only observation\n\n```json\n' + JSON.stringify(report, null, 2) + '\n```\n');
+          NODE
