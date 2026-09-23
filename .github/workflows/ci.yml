@@ -2,7 +2,7 @@ name: ArcBox M0 CI
 
 on:
   push:
-    branches: [main, feat/m0-b-toolchain, feat/m0-c-runtime]
+    branches: [main, feat/m0-b-toolchain, feat/m0-c-runtime, feat/m0-d-arc-compatibility]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -28,10 +28,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6, verified 2026-09-23
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
           persist-credentials: false
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6, verified 2026-09-23
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
           node-version-file: .node-version
           package-manager-cache: false
@@ -39,7 +39,9 @@ jobs:
         run: node scripts/toolchain/setup-pnpm.mjs
       - name: Install committed dependency graph without re-resolution
         run: pnpm install --frozen-lockfile
-      - name: Run M0-B regression and M0-C local runtime verification
+      - name: Install hash-pinned Arc local execution runtime
+        run: pnpm setup:arc
+      - name: Run prior regression and M0-D local verification
         env:
           ARCBOX_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: pnpm verify
@@ -51,16 +53,15 @@ jobs:
         if: ${{ always() }}
         run: |
           {
-            printf '\nNo deployment, production credentials or asset transfers.\n'
+            printf '\nNo Cloudflare deployment or public-chain writes.\n'
             printf 'Required job source: `%s`\n' "$GITHUB_SHA"
-            printf 'Bindings and Assets tests run locally in workerd/Miniflare, not a Cloudflare account.\n'
-            printf 'Signed Arc transactions and cloud integration remain NOT RUN.\n'
+            printf 'Local Arc execution is NOT public-testnet acceptance; dedicated-wallet authorization is still required.\n'
           } >> "$GITHUB_STEP_SUMMARY"
 
   arc-readonly:
-    name: Separate - Arc testnet read-only availability
+    name: Separate - Arc testnet read-only availability and SDK
     runs-on: ubuntu-24.04
-    timeout-minutes: 3
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
@@ -69,18 +70,22 @@ jobs:
         with:
           node-version-file: .node-version
           package-manager-cache: false
-      - name: Query only public read methods
+      - run: node scripts/toolchain/setup-pnpm.mjs
+      - run: pnpm install --frozen-lockfile
+      - name: Original public read checks
         run: timeout 90s node scripts/m0/probe-arc.mjs --network testnet | tee "$RUNNER_TEMP/arcbox-rpc.json"
+      - name: SDK reads and bounded historical receipt observations
+        run: timeout 90s pnpm probe:arc:sdk
       - name: Record independent RPC result
         if: ${{ always() }}
         run: |
           {
-            printf '# Arc read-only observation\n\nThis job has no dependency on the required offline checks.\n\n'
-            if [[ -s "$RUNNER_TEMP/arcbox-rpc.json" ]]; then
+            printf '# Arc read-only observation\n\nIndependent of local required checks. Historical receipts are NOT transactions sent by ArcBox.\n'
+            if [[ -s reports/arc-sdk-readonly.json ]]; then
               printf '```json\n'
-              cat "$RUNNER_TEMP/arcbox-rpc.json"
+              cat reports/arc-sdk-readonly.json
               printf '\n```\n'
             else
-              printf 'No valid RPC report was produced.\n'
+              printf 'No SDK report was produced.\n'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
