@@ -30,7 +30,7 @@ const TOOLS = [
     english: "Deliver",
     icon: FileTextIcon,
     tone: "deliver",
-    description: "我想发送文件或内容，对方付款后自动获取。",
+    description: "我想发送文件或内容，付款后按规则开放访问。",
     example: "卖一份模板，付款后开放文件。",
     keywords: "文件 内容 模板 出售 下载 交付 收款",
   },
@@ -40,7 +40,7 @@ const TOOLS = [
     english: "Group",
     icon: UsersThreeIcon,
     tone: "group",
-    description: "我想发起一个成团活动，达到人数后再收款。",
+    description: "我想先付款占席，截止时达标成团，否则可退本金。",
     example: "开一场工作坊，人数不够就退款。",
     keywords: "开课 团购 工作坊 报名 人数 退款",
   },
@@ -50,7 +50,7 @@ const TOOLS = [
     english: "Split",
     icon: ChartPieSliceIcon,
     tone: "split",
-    description: "我想与伙伴一起收款，按设定比例自动分账。",
+    description: "我想把可分配收入按固定比例分给伙伴。",
     example: "三位合作者按固定比例领取收入。",
     keywords: "分钱 分账 合作 比例 收入 领取",
   },
@@ -431,7 +431,7 @@ function RuleSummary({ name, price, tool }) {
         </div>
         <div>
           <dt>退款规则</dt>
-          <dd>按发布时的规则执行</dd>
+          <dd>{tool.id === "deliver" ? "示例：付款后 24 小时" : "依工具规则确认"}</dd>
         </div>
         <div>
           <dt>网络费用</dt>
@@ -770,8 +770,24 @@ function Payment({ onNavigate, onNotice }) {
             </div>
             <dl>
               <div>
+                <dt>工具</dt>
+                <dd>交付收款</dd>
+              </div>
+              <div>
+                <dt>订单</dt>
+                <dd>演示未创建</dd>
+              </div>
+              <div>
+                <dt>付款钱包</dt>
+                <dd>未连接</dd>
+              </div>
+              <div>
                 <dt>网络</dt>
                 <dd>Arc · 演示</dd>
+              </div>
+              <div>
+                <dt>收款合约</dt>
+                <dd>演示未部署</dd>
               </div>
               <div>
                 <dt>收款对象</dt>

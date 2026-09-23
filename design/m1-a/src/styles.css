@@ -717,6 +717,10 @@ button {
   font-size: 14px;
   line-height: 1.45;
 }
+.payment-panel dl > div {
+  padding: 9px 0;
+  font-size: 13px;
+}
 .rule-summary dt,
 .payment-panel dt {
   color: #617286;

@@ -6,6 +6,8 @@
 
 [选中原图](../../design/m1-a/references/home-selected.png)是首页布局真值：中心任务标题、搜索与场景词、六工具 3×2 目录、细分隔线和明确的“预览”状态。实现沿用 [视觉系统](../03-DESIGN-SYSTEM.md)的浅色 canvas、蓝色主动作、实底资金规则、系统 Latin/CJK 字体和最小阴影。原图的部分工具图标色与既有 token 不同，原型依照既有 token 使用 Deliver 蓝、Group 紫、Split 青、Attend 橙、Milestones 靛、Rewards 绿。
 
+原图中“达到人数后再收款”等句子只作为视觉占位，不改变既有资金规则：成团是先付款占席、截止时判定，失败者有本金退款权；分账只处理可分配收入。付款视觉摘要已留出工具、订单、付款钱包、网络、收款合约、收款方与网络费用位置，但演示不会填入虚构的链上地址或回执。
+
 | 基准页面 | 对应规格 | 桌面 1440 | 平板 768 | 手机 375 |
 |---|---|---|---|---|
 | 首页及工具选择 | P01 | [截图](../../design/m1-a/screenshots/home-1440.png) | [截图](../../design/m1-a/screenshots/home-768.png) | [截图](../../design/m1-a/screenshots/home-375.png) |
