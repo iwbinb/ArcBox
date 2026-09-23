@@ -5,6 +5,7 @@
 ## 1. 证据规则与当前基线
 
 - [已合并 main 的 CI 35871393114](https://github.com/iwbinb/ArcBox/actions/runs/35871393114) 两个 job 均成功，运行源码为 `a48c205`。必需 job 的结构化报告显示：Node 46、workerd 启动 1、D1/R2/Queues/Scheduled 本地绑定 33、Assets 路由 8、Arc 防护 33、Arc 本地执行 8，共 **129 项通过、0 失败、0 跳过/待执行**。静态检查、三份 TypeScript 配置、冻结安装、构建和源文件/锁文件无漂移检查通过。独立只读 job 的原探针 6 项与 SDK 探针 7 项也通过。
+- M0-E 首次收口提交 `1facd95724659317b01599521d0a6d6f80379973` 的 [dev CI 35873085855](https://github.com/iwbinb/ArcBox/actions/runs/35873085855) 与 [只读 smoke 35873085837](https://github.com/iwbinb/ArcBox/actions/runs/35873085837)均通过；CI 结构化报告仍为上述 129 项全部通过。已关闭的 [PR #1](https://github.com/iwbinb/ArcBox/pull/1)正文已加带日期的当前状态说明，原始早期文本保留，PR 仍为 CLOSED/Draft。
 - 上述 CI 的 M0-D 报告刻意标为 `PASS_LOCAL_ONLY`、`publicTestnetWrites=NOT_RUN_AUTHORIZATION_REQUIRED`，因为**常驻 CI 没有私钥且不发送交易**。公开测试网写入的唯一证据另见受保护的 [运行 35868308292](https://github.com/iwbinb/ArcBox/actions/runs/35868308292)，执行源码 `a4e3420`；不能把两次不同运行或提交混成一份结果。
 - [M0-D 公开测试网验收](M0-D-PUBLIC-TESTNET.md)记录两个最小探针、9 笔交易和 12 项场景。执行后分开的只读回查确认 8 笔成功、1 笔预期失败，实际 Gas 合计 0.039161031 测试 USDC，合约余额与授权为 0。回查使用同一官方 RPC，不宣称独立节点验证。
 - 本次 M0-E 再次只读检查 Arc Testnet chainId `5042002`：区块 `63603869`、hash `0x2f69286d888cd6dafd44b99115cdbc49a6b81693478fe1ccd4ac5f239d308a5e` 时，专用钱包余额 `4.960838969` 测试 USDC，确认/待处理 nonce 都为 `9`；两个探针仍有链上代码、原生及 ERC-20 USDC 余额均为 `0`，owner 对探针的 allowance 为 `0`。这是一时点观察，不保证以后余额不变。
