@@ -1,5 +1,7 @@
 # M0-D · Arc 兼容性开发与验证状态
 
+> 本文件保留首次开发交付时的历史状态与准确 source SHA。后续真实测试网写入及完整 M0-D 验收见 [公开测试网验收报告](M0-D-PUBLIC-TESTNET.md)。
+
 日期：2026-09-23。
 
 **开发交付：PASS_LOCAL_CI。完整 M0-D 验收：BLOCKED_PUBLIC_TESTNET_WRITE_EVIDENCE。**

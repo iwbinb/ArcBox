@@ -25,12 +25,12 @@
 | M0-A：GitHub/Actions 与只读探针 | PASS_CI_READONLY | [运行35820224910](https://github.com/iwbinb/ArcBox/actions/runs/35820224910)，27项离线fixture+6项测试网只读；没有签名/转账 |
 | M0-B：工具链与 CI | PASS_CI，PR #2 已合并 | [验收报告](M0-B-STATUS.md)、[复现说明](TOOLCHAIN.md)、[PR #2](https://github.com/iwbinb/ArcBox/pull/2) |
 | M0-C：绑定与运行时语义 | PASS_LOCAL_CI，PR #3 已合并 | [验收报告](M0-C-STATUS.md)、[探针说明](RUNTIME-PROBES.md)、[PR #3](https://github.com/iwbinb/ArcBox/pull/3)；新增41项+回归47项通过，合并基线ca2a26f |
-| M0-D：Arc 兼容性开发与实际交易 | 开发和本地CI通过；PENDING_SIGNER_PREFLIGHT_AND_FUNDING | [开发报告](M0-D-STATUS.md)、[复现与边界](ARC-COMPATIBILITY.md)、[最终本地复验](https://github.com/iwbinb/ArcBox/pull/4#issuecomment-5791656905)；128项历史本地测试通过，公开测试网新签名交易仍未执行 |
+| M0-D：Arc 兼容性开发与实际交易 | PASS_PUBLIC_TESTNET | [历史开发报告](M0-D-STATUS.md)、[真实测试网验收](M0-D-PUBLIC-TESTNET.md)、[受保护运行](https://github.com/iwbinb/ArcBox/actions/runs/35868308292)；9 笔限定交易及 12 项场景通过，执行后余额和授权已核对 |
 | M0-E：技术验证收口 | NOT_RUN | M0-D真实测试网证据齐全后再综合审查 |
 
 执行计划仍为 [v1.1](../delivery/01-CODEX-PLAN.md)。先前分支整合没有进入 M0-E 或 M1；PR #4 指向 main 的状态不因代码进入 dev 而被当作已合并或已验收。
 
-## M0-D 当前阻塞与授权
+## M0-D 授权、历史阻塞与实际验收
 
 用户已经明确授权专用测试钱包、官方水龙头测试币、两个最小探针，以及限定的授权、转账、签名和回执验证；**不再以“等待用户授权”为当前阻塞**。
 
@@ -38,9 +38,15 @@
 
 2026-09-23 接续：已生成新的专用测试钱包，公开地址为 `0x20E31f11Aaf66420765969f98Dbd2Bad47Fc1b98`；本机离线签名和地址恢复匹配。私钥持久保存于本机登录钥匙串的 `ArcBox M0-D Arc Testnet Wallet` 条目，并写入 GitHub `arcbox_testnet` 环境的 `ARCBOX_TESTNET_PRIVATE_KEY` Secret；公开地址写入该环境的 `ARCBOX_TESTNET_EXPECTED_ADDRESS` Variable。该环境只允许 `dev`，且需 `iwbinb` 审批；同一 GitHub 账号的审批不构成独立双人审查。
 
-[只读钱包检查 35852286276](https://github.com/iwbinb/ArcBox/actions/runs/35852286276) 在提交 `774d355` 上通过：Arc 测试网 chainId 为 5042002，区块 63581751 的公开地址余额为 0 测试 USDC、确认与待处理 nonce 均为 0。它不访问 GitHub Secret，不能证明受保护环境中的密钥可用。受保护签名工作流预检仍未运行、尚未领取测试币或发送新交易，不能据此标记 M0-D 通过。
+[只读钱包检查 35852286276](https://github.com/iwbinb/ArcBox/actions/runs/35852286276) 在提交 `774d355` 上通过：Arc 测试网 chainId 为 5042002，区块 63581751 的公开地址余额为 0 测试 USDC、确认与待处理 nonce 均为 0。这是收款前的历史基线，不证明当时受保护环境中的密钥可用。
 
-剩余工作是先运行受保护的签名和只读网络预检，再领取测试币、核对到账，最后补齐公开测试网写入证据。私钥和助记词不进入聊天、普通变量、工作流正文或公开仓库。已授权上限保持：单次资产移动不超过0.01测试USDC、单笔Gas不超过0.25、整次Gas不超过2测试USDC、最多12笔。
+2026-09-23 更新：[PR #6](https://github.com/iwbinb/ArcBox/pull/6) 已合并到 main `307da49`。新钱包收到测试网原生 USDC；[回执 `0x2927695…9ccb`](https://explorer.testnet.arc.io/tx/0x292769537299b461dc283c378598ce5c3d83c4f97dc8869614481db2ae8b9ccb) 在区块 63588366 成功，含一条 18 位精度的系统 Transfer。它是用户资金到达的证据，不是 ArcBox 发出的探针交易。[只读余额检查 35865428988](https://github.com/iwbinb/ArcBox/actions/runs/35865428988) 在提交 `a3cf060`、区块 63597209 观察到 2.000000 测试 USDC、确认与待处理 nonce 均为 0。
+
+[受保护签名预检 35865525540](https://github.com/iwbinb/ArcBox/actions/runs/35865525540) 经环境审批后在 `dev` 提交 `a3cf060` 成功运行：Secret 派生地址与预期地址匹配，离线签名恢复匹配，Arc 测试网 chainId 5042002，区块 63597525 余额 2.000000 测试 USDC、nonce 0。报告状态 `UNFUNDED` 表示**低于执行脚本要求的 2.1 测试 USDC 启动余额**，不是钱包无余额；该运行没有广播交易。
+
+补款后，[只读检查 35866759833](https://github.com/iwbinb/ArcBox/actions/runs/35866759833)在提交 `a4e3420`、区块 63598591 确认余额 5.000000 测试 USDC、nonce 0。[受保护预检 35866829296](https://github.com/iwbinb/ArcBox/actions/runs/35866829296)在同一提交上报告 `READY`、签名地址匹配、余额 5.000000、nonce 0，没有广播交易。
+
+随后[受保护执行 35868308292](https://github.com/iwbinb/ArcBox/actions/runs/35868308292)经单独审批，在 `a4e3420` 上完成两探针部署和 9 笔限定交易；`ARC-01` 至 `ARC-12` 全部通过，最后一笔为计划内的链上失败回执。执行后另外以只读 RPC 逐笔重取交易和回执：Gas 合计 0.039161031 测试 USDC，钱包余额 4.960838969、确认/待处理 nonce 均为 9，两探针余额及剩余授权均为 0。详情和交易哈希见 [M0-D 公开测试网验收](M0-D-PUBLIC-TESTNET.md)。**M0-D 在限定范围内通过；整个 M0 尚未收口，下一步是 M0-E。**已使用的钱包不可盲目重跑探针。
 
 ## 历史证据边界
 

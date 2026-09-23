@@ -1,6 +1,6 @@
 # Arc 兼容性探针 · 使用说明与边界
 
-M0-D 开发交付，2026-09-23。验收状态见 [M0-D-STATUS.md](M0-D-STATUS.md)。这不是生产支付 SDK、六工具合约或钱包托管服务。
+M0-D 开发交付，2026-09-23。真实测试网结果见 [M0-D 公开测试网验收](M0-D-PUBLIC-TESTNET.md)；最初的本地开发状态保留在 [历史报告](M0-D-STATUS.md)。这不是生产支付 SDK、六工具合约或钱包托管服务。
 
 ## 1. 文件职责
 
@@ -47,14 +47,14 @@ pnpm probe:arc:sdk  # 新7项SDK只读检查，有界读取历史回执
 
 | 能力 | 本地 Arc | 公开测试网当前证据 |
 |---|---|---|
-| decimals / shared balance / allowance read | PASS | 固定区块只读 PASS，范围为所读账户 |
-| 最小探针部署与运行字节码核对 | PASS | NOT RUN |
-| ERC-20 transfer / returnToken | PASS | 只读历史样本不是本项目转账；新交易 NOT RUN |
-| 精确 approve / SafeERC20 transferFrom 原子往返 | PASS | NOT RUN |
-| 双事件精度匹配、业务事件独立 | PASS | 三笔历史样本 PASS；新业务事件 NOT RUN |
-| receipt success / deliberate mined revert | PASS | 本项目新交易 NOT RUN |
-| EOA personal-sign / EIP-712、已部署 ERC-1271 | PASS | 新部署合约的签名执行 NOT RUN |
-| 错 chain/domain/signer/expiry/nonce replay | PASS | 网络上新的拒绝路径 NOT RUN |
+| decimals / shared balance / allowance read | PASS | 新钱包和实际交易前后只读 PASS |
+| 最小探针部署与运行字节码核对 | PASS | 两个新探针部署、链上代码核对 PASS |
+| ERC-20 transfer / returnToken | PASS | 0.001 测试 USDC 转出及固定 owner 返还 PASS |
+| 精确 approve / SafeERC20 transferFrom 原子往返 | PASS | 0.01 测试 USDC 授权与原子往返 PASS；执行后授权 0 |
+| 双事件精度匹配、业务事件独立 | PASS | 新交易的 6 位 ERC-20 与 18 位系统日志对应，业务事件单列 PASS |
+| receipt success / deliberate mined revert | PASS | 8 笔成功和 1 笔计划内失败回执 PASS |
+| EOA personal-sign / EIP-712、已部署 ERC-1271 | PASS | EOA 与已部署 ERC-1271 签名验证/消费 PASS；并非生产 SIWE |
+| 错 chain/domain/signer/expiry/nonce replay | PASS | 错 chain/domain 与 nonce 重放的公开链只读拒绝路径 PASS；其余边界保留本地证据，未额外广播失败交易 |
 | 0/self/原生最小单位精度 | PASS | 未在公开链主动复现 |
 | false/revert/no-return/扣费型代币 | 合成模型 PASS | 不声称改动/测试公开 USDC 黑名单 |
 | 浏览器钱包登录、多用户 SIWE / RBAC | 不在本探针范围 | 留 M2，未通过 |
@@ -70,9 +70,9 @@ pnpm probe:arc:sdk  # 新7项SDK只读检查，有界读取历史回执
 
 零额和自转账的系统事件行为另有本地用例。依赖版本和网络行为改变后重跑，不把历史样本替代未来所有交易验证。
 
-## 5. 公开测试网执行前的确认卡
+## 5. 一次性公开测试网执行确认卡（已完成）
 
-用户已授权限定的 M0-D 测试网操作；以下为每次执行前仍须满足的检查。受保护工作流尚未运行，公开链新交易仍未验收：
+用户已授权限定的 M0-D 测试网操作；以下条件已在 [受保护执行](https://github.com/iwbinb/ArcBox/actions/runs/35868308292)中核验。这是该专用钱包的一次性验证记录，不是重新执行的操作指引：
 
 - 网络仅 Arc testnet，chainId 5042002，固定官方RPC；没有 mainnet 模式。
 - 仅使用已登记的专用测试钱包和水龙头测试币；禁止主钱包、真实资产和公开开发助记词账户。
@@ -81,7 +81,7 @@ pnpm probe:arc:sdk  # 新7项SDK只读检查，有界读取历史回执
 - 普通单次移动≤0.01测试USDC；单笔Gas最大0.25、整次运行最大2测试USDC、最多12笔，正常9笔。启动需要≥2.1测试USDC余量；这是保守额度，不是预估必须花2。
 - 正常完成余额和授权归零；异常需先核对证据再继续，不自动换 nonce 重发。
 
-已采用 GitHub `arcbox_testnet` 环境，限制为 `dev` 并要求 `iwbinb` 审批；私钥只在环境 Secret，本机恢复材料只在登录钥匙串。新钱包地址见 [M0 当前进度](M0-STATUS.md)。先从 `dev` 手动触发 `M0-D protected Arc testnet` 的 `preflight`，确认签名与地址一致、链 ID、余额和 nonce；再领取测试币并重新核验到账。只有达到 2.1 测试 USDC 启动余量且交易计划无变化时，才手动选择 `execute`。两次运行分别需要环境审批，审批使用同一 GitHub 账号，不声称独立双人控制。当前常驻 CI 不读取私钥、不执行该命令；写入脚本不接到 push/PR 自动任务。
+GitHub `arcbox_testnet` 环境限制为 `dev` 并要求 `iwbinb` 审批；私钥只在环境 Secret，本机恢复材料只在登录钥匙串。预检在 5.000000 测试 USDC、nonce 0 时报告 `READY`；单独批准的 `execute` 随后完成 9 笔交易，钱包 nonce 已为 9。审批使用同一 GitHub 账号，不声称独立双人控制。常驻 CI 不读取私钥、不执行写入命令。**不要在这个钱包上重跑 `execute`；后续复测须另定方案和新专用钱包。**
 
 入口要求显式确认标记、专用地址匹配以及受保护进程内的专用测试密钥。不能把环境值写到仓库、聊天或公开日志。没有配置时运行会在任何RPC之前返回 BLOCKED；此负向路径已实际测试。
 
@@ -93,7 +93,7 @@ pnpm probe:arc:sdk  # 新7项SDK只读检查，有界读取历史回执
 
 恢复检查顺序：执行报告→已广播hash/nonce→合约代码和固定owner→剩余授权→探针/1271余额→只针对未完成动作制定新的确认方案。已有成功动作不盲目重做。USDC地址受限等外部原因可能阻止转出，不承诺脚本绕过代币规则。
 
-运行记录保存在本地忽略的 `.toolchain/live-runs/run-*` 私有文件夹，不保存私钥或原始签名交易；只在公开链验证后挑选无秘密的证据进入仓库。实际广播流程尚未在公开测试网运行。
+运行记录保存在 GitHub runner 上忽略的 `.toolchain/live-runs/run-*` 私有文件夹，不保存私钥或原始签名交易；其无秘密报告已在运行摘要和 [结构化证据](m0-d/public-testnet-35868308292.json)中保留。实际广播与执行后状态见 [验收报告](M0-D-PUBLIC-TESTNET.md)。
 
 ## 7. 官方依据与本轮选择
 

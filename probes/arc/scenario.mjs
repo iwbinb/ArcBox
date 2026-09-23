@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createPublicClient, createWalletClient, http, encodeFunctionData, parseEventLogs, hashTypedData, verifyMessage } from 'viem';
-import { TOKEN, RPC, TESTNET_ID, SCALE, ERC20, chain, assertEndpoint, FeeBudget, checkReceipt, pairedTransfers, typedAction, caseId, safeJson, fail } from './lib.mjs';
+import { TOKEN, RPC, TESTNET_ID, SCALE, ERC20, chain, assertEndpoint, assertUnusedTestnetWallet, FeeBudget, checkReceipt, pairedTransfers, typedAction, caseId, safeJson, fail } from './lib.mjs';
 
 const load = (name) => JSON.parse(readFileSync(`dist/arc/${name}.json`, 'utf8'));
 export function artifacts() { return { probe: load('ArcCompatibilityProbe'), wallet1271: load('Probe1271Wallet'), fixture: load('TokenFixture') }; }
@@ -80,6 +80,13 @@ export async function executeScenario({ mode, url, account, report, save = () =>
     return receipt;
   }
   try {
+    if (mode === 'testnet') {
+      const [latestNonce, pendingNonce] = await Promise.all([
+        client.getTransactionCount({ address: account.address, blockTag: 'latest' }),
+        client.getTransactionCount({ address: account.address, blockTag: 'pending' }),
+      ]);
+      assertUnusedTestnetWallet(latestNonce, pendingNonce);
+    }
     assert.equal(await read(TOKEN, ERC20, 'decimals'), 6);
     const initial = await client.getBalance({ address: account.address });
     assert.equal(await read(TOKEN, ERC20, 'balanceOf', [account.address]), initial / SCALE);
@@ -141,6 +148,7 @@ export async function executeScenario({ mode, url, account, report, save = () =>
     report.status = mode === 'local' ? 'PASS_LOCAL_ARC' : 'PASS_PUBLIC_TESTNET';
   } catch (error) {
     report.status = 'FAIL_OR_BLOCKED'; report.failedAction = currentAction; report.errorClass = error.name;
+    if (error.code === 'TESTNET_WALLET_ALREADY_USED') report.errorCode = error.code;
     // Do not stringify error objects: SDK errors can contain raw signed payloads.
     throw error;
   } finally {
