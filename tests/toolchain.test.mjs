@@ -79,7 +79,11 @@ function temporary(fn) {
   try { fn(dir); } finally { rmSync(dir, { recursive: true, force: true }); }
 }
 function failure(command, args, options = {}) {
-  const result = spawnSync(command, args, { encoding: 'utf8', timeout: 30_000, ...options });
+  const env = { ...process.env, ...options.env };
+  // A separate node --test process must not inherit the parent's child-v8 context.
+  // Otherwise Node skips recursive test discovery and can return zero without tests.
+  delete env.NODE_TEST_CONTEXT;
+  const result = spawnSync(command, args, { encoding: 'utf8', timeout: 30_000, ...options, env });
   assert.equal(result.error, undefined, 'Must fail for the intended reason, not a timeout or missing tool.');
   assert.notEqual(result.status, 0);
   assert.notEqual(result.status, null);
@@ -93,7 +97,10 @@ test('negative control: TypeScript type error returns nonzero', () => temporary(
 test('negative control: a failing Node assertion returns nonzero', () => temporary((dir) => {
   const path = join(dir, 'bad.test.mjs');
   writeFileSync(path, "import test from 'node:test'; import assert from 'node:assert/strict'; test('intentional',()=>assert.equal(1,2));\n");
-  assert.match(failure(process.execPath, ['--test', '--test-reporter=tap', path]), /# fail 1/);
+  const out = failure(process.execPath, ['--test', '--test-reporter=tap', path]);
+  assert.match(out, /# tests 1/);
+  assert.match(out, /# fail 1/);
+  assert.match(out, /# skipped 0/);
 }));
 test('negative control: stale lockfile fails frozen offline installation', () => temporary((dir) => {
   const stale = clone(pkg); stale.devDependencies.vite = '0.0.0';
