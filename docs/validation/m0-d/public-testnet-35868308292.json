@@ -1,0 +1,244 @@
+{
+  "schemaVersion": 1,
+  "stage": "M0-D",
+  "scope": "PUBLIC_TESTNET_WRITE",
+  "sourceSha": "a4e34201e58274438c58b9dfe04e8c505e3642dc",
+  "runId": "35868308292",
+  "status": "PASS_PUBLIC_TESTNET",
+  "account": "0x20E31f11Aaf66420765969f98Dbd2Bad47Fc1b98",
+  "chainId": 5042002,
+  "contracts": {
+    "probe": "0xedf49e30c2843cefe4ef86959e809978c72e10df",
+    "wallet1271": "0x8c2b3e1befa31085e314873487efe70435d28c09"
+  },
+  "checks": [
+    {
+      "id": "ARC-01",
+      "status": "PASS",
+      "detail": {
+        "sharedBalance": true,
+        "erc20Decimals": 6,
+        "nativeDecimals": 18
+      }
+    },
+    {
+      "id": "ARC-02",
+      "status": "PASS",
+      "detail": {
+        "probe": "0xedf49e30c2843cefe4ef86959e809978c72e10df",
+        "smartWallet": "0x8c2b3e1befa31085e314873487efe70435d28c09",
+        "runtimeBytecodeVerified": true
+      }
+    },
+    {
+      "id": "ARC-03",
+      "status": "PASS",
+      "detail": {
+        "amountU6": "1000",
+        "matchedPairs": 1,
+        "hash": "0xb8be960c3a9f579b016a0920320dcc6452a8cc566e9acbeaed2e5056e32dc3b6"
+      }
+    },
+    {
+      "id": "ARC-04",
+      "status": "PASS",
+      "detail": {
+        "returnedToFixedOwner": true
+      }
+    },
+    {
+      "id": "ARC-05",
+      "status": "PASS",
+      "detail": {
+        "noAllowanceSimulationRejected": true,
+        "note": "Simulation, not a mined revert."
+      }
+    },
+    {
+      "id": "ARC-06",
+      "status": "PASS",
+      "detail": {
+        "allowanceU6": "10000",
+        "notAPayment": true
+      }
+    },
+    {
+      "id": "ARC-07",
+      "status": "PASS",
+      "detail": {
+        "matchedPairs": 2,
+        "businessEvents": 1,
+        "residualU6": "0",
+        "allowanceU6": "0",
+        "gasSeparate": true
+      }
+    },
+    {
+      "id": "ARC-08",
+      "status": "PASS",
+      "detail": {
+        "duplicateCaseRejected": true
+      }
+    },
+    {
+      "id": "ARC-09",
+      "status": "PASS",
+      "detail": {
+        "eoaPersonalSignature": true,
+        "productionSiwe": false
+      }
+    },
+    {
+      "id": "ARC-10",
+      "status": "PASS",
+      "detail": {
+        "signerKind": "EOA",
+        "typedDigestMatches": true,
+        "wrongChainRejected": true,
+        "nonceReplayRejected": true
+      }
+    },
+    {
+      "id": "ARC-11",
+      "status": "PASS",
+      "detail": {
+        "signerKind": "DEPLOYED_ERC1271",
+        "typedDigestMatches": true,
+        "wrongChainRejected": true,
+        "nonceReplayRejected": true
+      }
+    },
+    {
+      "id": "ARC-12",
+      "status": "PASS",
+      "detail": {
+        "status": "reverted",
+        "hash": "0x39a19ee558a75d8cc6f705b171db9090f90c2f0aea1a7214a14428a13d36d131",
+        "logs": 0,
+        "gasCharged": true
+      }
+    }
+  ],
+  "transactions": [
+    {
+      "label": "deploy-probe",
+      "status": "success",
+      "nonce": 0,
+      "hash": "0xd3294ae636012e55ec9582ba04e2f43cb47810d291e962ccdc13f0dfc83f117f",
+      "to": null,
+      "contractAddress": "0xedf49e30c2843cefe4ef86959e809978c72e10df",
+      "blockNumber": "63600615",
+      "blockHash": "0xef349375d54d848dbbb7bb3f205c6cb8d24cabd8712926421f38d5a8729b22d2",
+      "gasUsed": "1051029",
+      "effectiveGasPrice": "21000000000",
+      "feeU18": "22071609000000000"
+    },
+    {
+      "label": "deploy-1271",
+      "status": "success",
+      "nonce": 1,
+      "hash": "0x58f88fae2f7d539ed0cb2b97d67699f44ee113bcfde7679be677f6af283277bc",
+      "to": null,
+      "contractAddress": "0x8c2b3e1befa31085e314873487efe70435d28c09",
+      "blockNumber": "63600618",
+      "blockHash": "0xeb07ffa72bf1be869f92eabfb03dd164a905d39b3e757f781c72a27a7d8e1927",
+      "gasUsed": "433172",
+      "effectiveGasPrice": "21000000000",
+      "feeU18": "9096612000000000"
+    },
+    {
+      "label": "erc20-transfer",
+      "status": "success",
+      "nonce": 2,
+      "hash": "0xb8be960c3a9f579b016a0920320dcc6452a8cc566e9acbeaed2e5056e32dc3b6",
+      "to": "0x3600000000000000000000000000000000000000",
+      "contractAddress": null,
+      "blockNumber": "63600621",
+      "blockHash": "0x4d5dbd48717f3f2a8b25662c7d653c29cc82798a301a29c8b6f31d152a37a07e",
+      "gasUsed": "48938",
+      "effectiveGasPrice": "21000000000",
+      "feeU18": "1027698000000000"
+    },
+    {
+      "label": "return-direct-transfer",
+      "status": "success",
+      "nonce": 3,
+      "hash": "0x7ab25793cdf894390e5285fa494b4e1612d719edb2078e68517dfe9b7a191e5a",
+      "to": "0x8c2b3e1befa31085e314873487efe70435d28c09",
+      "contractAddress": null,
+      "blockNumber": "63600624",
+      "blockHash": "0xa814ce18ca1994315157862183de1528ccbfc42f8fae284d991c5845b96895c9",
+      "gasUsed": "50727",
+      "effectiveGasPrice": "21000000000",
+      "feeU18": "1065267000000000"
+    },
+    {
+      "label": "exact-approval",
+      "status": "success",
+      "nonce": 4,
+      "hash": "0x38e6c5937206a2b967ee2d5dc9857a633badd79272abff0f0e4f7d3fdb934c75",
+      "to": "0x3600000000000000000000000000000000000000",
+      "contractAddress": null,
+      "blockNumber": "63600628",
+      "blockHash": "0x5739e9ad9866a994bb965b2edbb7def3f91d306cea2c52bd7ea194c59e1008a6",
+      "gasUsed": "55426",
+      "effectiveGasPrice": "21000000000",
+      "feeU18": "1163946000000000"
+    },
+    {
+      "label": "safe-transferfrom-roundtrip",
+      "status": "success",
+      "nonce": 5,
+      "hash": "0x32ec4568149bc96dae132e1ff6fb24a6a8cced80634a0e7abe003f6ce7ab73fe",
+      "to": "0xedf49e30c2843cefe4ef86959e809978c72e10df",
+      "contractAddress": null,
+      "blockNumber": "63600631",
+      "blockHash": "0xdf878846a8a984207179da20b0bcddf75884e9d916f5abb7dd2f9db85f6161b9",
+      "gasUsed": "92631",
+      "effectiveGasPrice": "21000000000",
+      "feeU18": "1945251000000000"
+    },
+    {
+      "label": "consume-10",
+      "status": "success",
+      "nonce": 6,
+      "hash": "0xc9dd25d55cf1c02142c3b8295bf9eba673206d794e9935ecfe5e12b7c13a3b6e",
+      "to": "0xedf49e30c2843cefe4ef86959e809978c72e10df",
+      "contractAddress": null,
+      "blockNumber": "63600635",
+      "blockHash": "0x1e2b0613d2e0e15158164fc8ef24ff26a489df50e1016e471a4c07a517a3030c",
+      "gasUsed": "52991",
+      "effectiveGasPrice": "21000000000",
+      "feeU18": "1112811000000000"
+    },
+    {
+      "label": "consume-11",
+      "status": "success",
+      "nonce": 7,
+      "hash": "0x5f1e941d4e864b331529d5ae5d97eaf6c1c209aa464cd40b8af1914ed9232ef4",
+      "to": "0xedf49e30c2843cefe4ef86959e809978c72e10df",
+      "contractAddress": null,
+      "blockNumber": "63600639",
+      "blockHash": "0x129e5cf4be2b0ebb979357c366d8701cf5415a0b4fc75d03983f04e24ba33268",
+      "gasUsed": "58604",
+      "effectiveGasPrice": "21000000000",
+      "feeU18": "1230684000000000"
+    },
+    {
+      "label": "expected-mined-revert",
+      "status": "reverted",
+      "nonce": 8,
+      "hash": "0x39a19ee558a75d8cc6f705b171db9090f90c2f0aea1a7214a14428a13d36d131",
+      "to": "0xedf49e30c2843cefe4ef86959e809978c72e10df",
+      "contractAddress": null,
+      "blockNumber": "63600641",
+      "blockHash": "0x5c32b3d69858f5da50f9bf2038abf1545b08d834ba5871da2d7fd605c485145a",
+      "gasUsed": "21293",
+      "effectiveGasPrice": "21000000000",
+      "feeU18": "447153000000000"
+    }
+  ],
+  "totalGasFeeU18": "39161031000000000",
+  "unresolvedTransaction": false,
+  "completedAt": "2026-09-23T13:40:55.060Z"
+}

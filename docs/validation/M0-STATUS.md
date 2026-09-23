@@ -25,12 +25,12 @@
 | M0-A：GitHub/Actions 与只读探针 | PASS_CI_READONLY | [运行35820224910](https://github.com/iwbinb/ArcBox/actions/runs/35820224910)，27项离线fixture+6项测试网只读；没有签名/转账 |
 | M0-B：工具链与 CI | PASS_CI，PR #2 已合并 | [验收报告](M0-B-STATUS.md)、[复现说明](TOOLCHAIN.md)、[PR #2](https://github.com/iwbinb/ArcBox/pull/2) |
 | M0-C：绑定与运行时语义 | PASS_LOCAL_CI，PR #3 已合并 | [验收报告](M0-C-STATUS.md)、[探针说明](RUNTIME-PROBES.md)、[PR #3](https://github.com/iwbinb/ArcBox/pull/3)；新增41项+回归47项通过，合并基线ca2a26f |
-| M0-D：Arc 兼容性开发与实际交易 | 开发和本地CI通过；BLOCKED_MINIMUM_TEST_BALANCE | [开发报告](M0-D-STATUS.md)、[复现与边界](ARC-COMPATIBILITY.md)、[受保护签名预检](https://github.com/iwbinb/ArcBox/actions/runs/35865525540)；公开测试网新签名交易仍未执行 |
+| M0-D：Arc 兼容性开发与实际交易 | PASS_PUBLIC_TESTNET | [历史开发报告](M0-D-STATUS.md)、[真实测试网验收](M0-D-PUBLIC-TESTNET.md)、[受保护运行](https://github.com/iwbinb/ArcBox/actions/runs/35868308292)；9 笔限定交易及 12 项场景通过，执行后余额和授权已核对 |
 | M0-E：技术验证收口 | NOT_RUN | M0-D真实测试网证据齐全后再综合审查 |
 
 执行计划仍为 [v1.1](../delivery/01-CODEX-PLAN.md)。先前分支整合没有进入 M0-E 或 M1；PR #4 指向 main 的状态不因代码进入 dev 而被当作已合并或已验收。
 
-## M0-D 当前阻塞与授权
+## M0-D 授权、历史阻塞与实际验收
 
 用户已经明确授权专用测试钱包、官方水龙头测试币、两个最小探针，以及限定的授权、转账、签名和回执验证；**不再以“等待用户授权”为当前阻塞**。
 
@@ -44,7 +44,9 @@
 
 [受保护签名预检 35865525540](https://github.com/iwbinb/ArcBox/actions/runs/35865525540) 经环境审批后在 `dev` 提交 `a3cf060` 成功运行：Secret 派生地址与预期地址匹配，离线签名恢复匹配，Arc 测试网 chainId 5042002，区块 63597525 余额 2.000000 测试 USDC、nonce 0。报告状态 `UNFUNDED` 表示**低于执行脚本要求的 2.1 测试 USDC 启动余额**，不是钱包无余额；该运行没有广播交易。
 
-剩余工作是将新钱包余额补至至少 2.1 测试 USDC，重新执行受保护的余额预检，再在单独的环境审批下运行限定写入场景，并核对回执、余额和剩余授权。私钥和助记词不进入聊天、普通变量、工作流正文或公开仓库。已授权上限保持：单次资产移动不超过0.01测试USDC、单笔Gas不超过0.25、整次Gas不超过2测试USDC、最多12笔。
+补款后，[只读检查 35866759833](https://github.com/iwbinb/ArcBox/actions/runs/35866759833)在提交 `a4e3420`、区块 63598591 确认余额 5.000000 测试 USDC、nonce 0。[受保护预检 35866829296](https://github.com/iwbinb/ArcBox/actions/runs/35866829296)在同一提交上报告 `READY`、签名地址匹配、余额 5.000000、nonce 0，没有广播交易。
+
+随后[受保护执行 35868308292](https://github.com/iwbinb/ArcBox/actions/runs/35868308292)经单独审批，在 `a4e3420` 上完成两探针部署和 9 笔限定交易；`ARC-01` 至 `ARC-12` 全部通过，最后一笔为计划内的链上失败回执。执行后另外以只读 RPC 逐笔重取交易和回执：Gas 合计 0.039161031 测试 USDC，钱包余额 4.960838969、确认/待处理 nonce 均为 9，两探针余额及剩余授权均为 0。详情和交易哈希见 [M0-D 公开测试网验收](M0-D-PUBLIC-TESTNET.md)。**M0-D 在限定范围内通过；整个 M0 尚未收口，下一步是 M0-E。**已使用的钱包不可盲目重跑探针。
 
 ## 历史证据边界
 

@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
 import { toHex, padHex } from 'viem';
 import { mnemonicToAccount, privateKeyToAccount } from 'viem/accounts';
-import { amountU6, assertEndpoint, FeeBudget, guardLive, checkReceipt, pairedTransfers, TOKEN, SYSTEM, SCALE, TRANSFER_TOPIC, caseId, readonlyClient } from '../../probes/arc/lib.mjs';
+import { amountU6, assertEndpoint, assertUnusedTestnetWallet, FeeBudget, guardLive, checkReceipt, pairedTransfers, TOKEN, SYSTEM, SCALE, TRANSFER_TOPIC, caseId, readonlyClient } from '../../probes/arc/lib.mjs';
 
 for (const value of ['', '-1', '0', '0.0000001', '0.010001', '1e-3', ' 0.001', '01.0', 0.001]) test(`GUARD amount rejects ${JSON.stringify(value)}`, () => assert.throws(() => amountU6(value)));
 test('GUARD six-decimal amounts are integer-exact', () => { assert.equal(amountU6('0.000001'), 1n); assert.equal(amountU6('0.01'), 10000n); });
@@ -20,6 +20,11 @@ test('GUARD dedicated expected address is mandatory', () => assert.throws(() => 
 test('GUARD low-entropy fixture key rejected even when address matches', () => {
   const key = toHex(1n, { size: 32 });
   assert.throws(() => guardLive({ ARCBOX_TESTNET_CONFIRM: 'M0-D-TESTNET-ONLY', ARCBOX_TESTNET_PRIVATE_KEY: key, ARCBOX_TESTNET_EXPECTED_ADDRESS: privateKeyToAccount(key).address }), /PUBLIC_DEVELOPMENT_KEY_DENIED/);
+});
+test('GUARD public testnet probe wallet can only start from unused nonce', () => {
+  assertUnusedTestnetWallet(0, 0);
+  assert.throws(() => assertUnusedTestnetWallet(9, 9), /TESTNET_WALLET_ALREADY_USED/);
+  assert.throws(() => assertUnusedTestnetWallet(0, 1), /TESTNET_WALLET_ALREADY_USED/);
 });
 test('GUARD readonly transport blocks broadcast before network', async () => { await assert.rejects(readonlyClient().request({ method: 'eth_sendRawTransaction', params: ['0x'] }), /READONLY_METHOD_DENIED/); });
 test('GUARD fee reservation includes unresolved transaction and exact caps', () => {

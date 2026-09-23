@@ -49,6 +49,9 @@ export function guardLive(env) {
   if (devAddresses.includes(account.address.toLowerCase()) || BigInt(env.ARCBOX_TESTNET_PRIVATE_KEY) <= 1000n) fail('PUBLIC_DEVELOPMENT_KEY_DENIED');
   return account;
 }
+export function assertUnusedTestnetWallet(latestNonce, pendingNonce) {
+  if (BigInt(latestNonce) !== 0n || BigInt(pendingNonce) !== 0n) fail('TESTNET_WALLET_ALREADY_USED');
+}
 export class FeeBudget {
   constructor({ maxPerTx = 250000000000000000n, maxRun = 2000000000000000000n, maxTransactions = 12 } = {}) {
     this.maxPerTx = maxPerTx; this.maxRun = maxRun; this.maxTransactions = maxTransactions;
