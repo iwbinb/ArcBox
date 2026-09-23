@@ -15,6 +15,8 @@ M0-D 开发交付，2026-09-23。验收状态见 [M0-D-STATUS.md](M0-D-STATUS.md
 | scripts/m0/compile-arc.mjs | 固定 solc / OpenZeppelin 编译与源文件 hash |
 | scripts/m0/probe-arc-sdk.mjs | 无签名权限的公开测试网 SDK 只读观察 |
 | scripts/m0/arc-testnet-write.mjs | 默认关闭的公开测试网写入口 |
+| scripts/m0/arc-testnet-preflight.mjs | 受保护钱包的离线签名与公开测试网只读预检 |
+| .github/workflows/m0-d-testnet.yml | 仅手动触发、仅 dev、需环境审批的预检与限定执行入口 |
 | tests/arc/guards.test.mjs | 32 项负向/防护测试 |
 | tests/arc/local.integration.test.mjs | 8 项本地 Arc EVM 集成测试 |
 | scripts/m0/verify-arc.mjs | 汇总真实执行结果，保留公开写入 NOT RUN |
@@ -70,16 +72,16 @@ pnpm probe:arc:sdk  # 新7项SDK只读检查，有界读取历史回执
 
 ## 5. 公开测试网执行前的确认卡
 
-以下均为**待批准/待配置**，不是已取得授权：
+用户已授权限定的 M0-D 测试网操作；以下为每次执行前仍须满足的检查。受保护工作流尚未运行，公开链新交易仍未验收：
 
 - 网络仅 Arc testnet，chainId 5042002，固定官方RPC；没有 mainnet 模式。
-- 新建专用钱包，只存水龙头测试币；禁止主钱包、真实资产和公开开发助记词账户。
+- 仅使用已登记的专用测试钱包和水龙头测试币；禁止主钱包、真实资产和公开开发助记词账户。
 - 部署 ArcCompatibilityProbe 与 Probe1271Wallet 两个最小测试合约，不部署业务合约。
 - 允许精确授权、小额转账与返还、原子 transferFrom 往返、签名消费、一次预期失败回执测试。
 - 普通单次移动≤0.01测试USDC；单笔Gas最大0.25、整次运行最大2测试USDC、最多12笔，正常9笔。启动需要≥2.1测试USDC余量；这是保守额度，不是预估必须花2。
 - 正常完成余额和授权归零；异常需先核对证据再继续，不自动换 nonce 重发。
 
-用户确认后再确定受保护的执行通道与密钥配置。当前常驻 CI 不读取私钥、不执行该命令；不能把写入脚本直接接到 push/PR 的自动任务。
+已采用 GitHub `arcbox_testnet` 环境，限制为 `dev` 并要求 `iwbinb` 审批；私钥只在环境 Secret，本机恢复材料只在登录钥匙串。新钱包地址见 [M0 当前进度](M0-STATUS.md)。先从 `dev` 手动触发 `M0-D protected Arc testnet` 的 `preflight`，确认签名与地址一致、链 ID、余额和 nonce；再领取测试币并重新核验到账。只有达到 2.1 测试 USDC 启动余量且交易计划无变化时，才手动选择 `execute`。两次运行分别需要环境审批，审批使用同一 GitHub 账号，不声称独立双人控制。当前常驻 CI 不读取私钥、不执行该命令；写入脚本不接到 push/PR 自动任务。
 
 入口要求显式确认标记、专用地址匹配以及受保护进程内的专用测试密钥。不能把环境值写到仓库、聊天或公开日志。没有配置时运行会在任何RPC之前返回 BLOCKED；此负向路径已实际测试。
 
