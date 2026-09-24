@@ -7,6 +7,8 @@ ArcBox 是面向创作者、小团队、活动组织者的 **Arc / USDC 工具�
 > **文档基线：产品设计规格 v1.0；全阶段开发与部署总计划 v1.1。M0-A 至 M0-E 按限定技术探针范围完成；M1-A/B/C 与 D0 无资金网站预览已验收。[查看真实 Demo 预览](https://arcbox-web-demo.iwbinb.workers.dev/)。完整浏览器钱包、六工具业务、D1 云端资源及主网仍未验收。**
 > 文档包含产品、页面、交互、六工具业务规则、合约边界、数据/API、Cloudflare 部署、安全、测试和分阶段开发计划。示例均为模拟数据；不代表真实用户、交易、安全审计或获奖承诺。
 
+Demo 预览已接入 `dev` 的 [GitHub 自动部署](docs/validation/DEMO-AUTO-DEPLOY.md)：四项检查全部通过后更新 Cloudflare；PR 和 `main` 不触发发布。
+
 ## 六个工具
 
 | 工具 | 用户要完成的事 | 规格 |

@@ -1,6 +1,6 @@
 # Demo 预览自动部署
 
-日期：2026-09-24。**GitHub 手动调度的首次成功部署已验收；后续 `dev` 推送自动触发仍待实测。**[M1-C / D0](M1-C-D0.md) 的历史手动部署与回退验收保持原样。
+日期：2026-09-24。**PASS_AUTO_DEV_PUSH：GitHub `dev` 推送在四项检查通过后自动更新了 Cloudflare 无资金 Demo 预览。**[M1-C / D0](M1-C-D0.md) 的历史手动部署与回退验收保持原样。
 
 ## 固定范围
 
@@ -12,7 +12,9 @@ GitHub 环境 `arcbox_demo` 已创建，部署分支策略只允许 `dev`。环�
 
 Cloudflare 的 [GitHub Actions 指引](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/)要求非交互部署使用 API Token 和账号 ID。[首次手动运行 35955954871](https://github.com/iwbinb/ArcBox/actions/runs/35955954871) 的四个检查 job 全部成功，Demo job 也接收到非空的两个 Secret；但 Cloudflare 在读取 `/workers/services/arcbox-web-demo` 时返回 `No access to the specified service`。没有上传新版本，公网健康接口仍报告手动部署源码 `69985bc`。负责人需核对 `CLOUDFLARE_API_TOKEN` 的资源是否为正确账号，权限是否包含 **Account → Workers Scripts → Edit**；必要时更新该 GitHub Environment Secret。不要发到聊天或提交到仓库。现有本机 Wrangler OAuth 不复制到 CI。该权限仍是账号级 Worker 写权限，不能声称只可修改 ArcBox 这一个 Worker；不附加 D1、R2、Queues 或 DNS 写权限。
 
-用户调整权限后，[第二次手动运行 35957693628](https://github.com/iwbinb/ArcBox/actions/runs/35957693628) 的四项检查及 `demo-deploy` 全部成功。Cloudflare 新增活动部署 `c2abe93e-27f1-4da4-a8a5-857b7458c682`，版本 `5170a819-0c0d-4290-80ae-825cbf27a9a0`，消息为 `GitHub dev 7b7494a332578da4cd4bcf232ddba6995a411e93`；公网健康接口独立回读该完整 SHA、`environment=demo`、`paymentsEnabled=false`。**这证明 GitHub 凭证和部署路径可用，但手动调度成功不能替代自动推送验收。**下一步由一个实际 `dev` 推送触发完整 CI 与发布，再记录 GitHub `event=push`、新活动 Worker 版本和公网 SHA。
+用户调整权限后，[第二次手动运行 35957693628](https://github.com/iwbinb/ArcBox/actions/runs/35957693628) 的四项检查及 `demo-deploy` 全部成功。Cloudflare 新增部署 `c2abe93e-27f1-4da4-a8a5-857b7458c682`，版本 `5170a819-0c0d-4290-80ae-825cbf27a9a0`，消息为 `GitHub dev 7b7494a332578da4cd4bcf232ddba6995a411e93`；公网健康接口独立回读该完整 SHA、`environment=demo`、`paymentsEnabled=false`。
+
+[首次真实 `dev` 推送运行 35957888825](https://github.com/iwbinb/ArcBox/actions/runs/35957888825) 的事件类型为 `push`，head 为 `1ea39f10df96a4875a8f690469515ade036452c7`；四项检查与 `demo-deploy` 全部成功。Cloudflare 记录的该次部署为 `42244443-6412-4309-a440-17496f09ef38`、版本 `d2053825-de27-4e1e-b7a2-35eaa75d6e94`、100% 流量，消息包含同一完整 SHA。独立公网 `/api/health` 回报 `sourceSha=1ea39f10df96a4875a8f690469515ade036452c7`、`environment=demo`、`paymentsEnabled=false`。这证明自动推送路径生效；后续文档提交也会依照同一规则生成较新 Demo 版本，实际当前源码应以公网健康接口为准。
 
 ## 运行边界
 
