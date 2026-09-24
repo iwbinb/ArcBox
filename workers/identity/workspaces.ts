@@ -15,7 +15,10 @@ export async function member(db:D1Database,workspace:string,user:string,allowed?
 }
 function role(value:unknown):string{if(typeof value!=='string'||!roles.includes(value))return bad(422,'INVALID_ROLE');return value;}
 function page(request:Request):string{const cursor=new URL(request.url).searchParams.get('cursor')??'';if(cursor.length>100)return bad(422,'INVALID_CURSOR');return cursor;}
-async function changed(result:D1Result):Promise<void>{if(result.meta.changes!==1)bad(409,'STATE_CHANGED');}
+function changed(result:D1Result):void{
+  // RETURNING counts the intended row, independently of audit/revision triggers.
+  if(result.results.length!==1)bad(409,'STATE_CHANGED');
+}
 export async function workspaceRoutes(request:Request,env:IdentityEnv,identity:Identity,parts:string[]):Promise<Response>{
   const db=env.DB,user=identity.userId,now=Date.now(),method=request.method;
   if(parts[0]==='invitations'){
@@ -39,8 +42,8 @@ export async function workspaceRoutes(request:Request,env:IdentityEnv,identity:I
     }
     if(method==='POST'){
       const input=await body(request,['name']),name=text(input.name,80),id=uuid();
-      const result=await db.prepare('INSERT INTO workspaces(id,name,owner_id,created_at,updated_at,updated_by) SELECT ?1,?2,?3,?4,?4,?3 WHERE (SELECT count(*) FROM memberships WHERE user_id=?3)<50').bind(id,name,user,now).run();
-      if(result.meta.changes!==1)return bad(409,'WORKSPACE_LIMIT');
+      const row=await db.prepare('INSERT INTO workspaces(id,name,owner_id,created_at,updated_at,updated_by) SELECT ?1,?2,?3,?4,?4,?3 WHERE (SELECT count(*) FROM memberships WHERE user_id=?3)<50 RETURNING id').bind(id,name,user,now).first();
+      if(!row)return bad(409,'WORKSPACE_LIMIT');
       return response({id,name,version:1,role:'owner'},201);
     }
     return bad(404,'NOT_FOUND');
@@ -60,21 +63,21 @@ export async function workspaceRoutes(request:Request,env:IdentityEnv,identity:I
   if(parts[2]==='members'){
     if(parts.length===3&&method==='GET')return response((await db.prepare('SELECT m.user_id,u.address,m.role FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.workspace_id=?1 ORDER BY m.user_id LIMIT 100').bind(workspace).all()).results);
     if(parts.length===4&&(method==='PATCH'||method==='DELETE')){
-      owner();const target=decodeURIComponent(parts[3]!);
+      owner();let target:string;try{target=decodeURIComponent(parts[3]!);}catch{return bad(400,'INVALID_PATH');}
       if(target===user)return bad(409,'OWNER_IMMUTABLE');
       if(method==='PATCH'){
         const input=await body(request,['role']);
-        await changed(await db.prepare("UPDATE memberships SET role=?1,updated_by=?2,updated_at=?3 WHERE workspace_id=?4 AND user_id=?5 AND role!='owner' AND EXISTS(SELECT 1 FROM workspaces WHERE id=?4 AND owner_id=?2)").bind(role(input.role),user,now,workspace,target).run());
+        changed(await db.prepare("UPDATE memberships SET role=?1,updated_by=?2,updated_at=?3 WHERE workspace_id=?4 AND user_id=?5 AND role!='owner' AND EXISTS(SELECT 1 FROM workspaces WHERE id=?4 AND owner_id=?2) RETURNING user_id").bind(role(input.role),user,now,workspace,target).run());
       }else{
         await body(request,[]);
-        // Only owners remove members in v1. Invalidate pending invitations in
-        // the same transaction, preventing an old invitation from restoring access.
+        // Invalidate old invitations atomically with removal. Workspace ownership
+        // is immutable in M2-A; the SQL still independently checks the actor.
         const statements=[
           db.prepare("UPDATE invitations SET state='revoked',updated_by=?1,updated_at=?2 WHERE workspace_id=?3 AND state='pending' AND recipient=(SELECT address FROM users WHERE id=?4) AND EXISTS(SELECT 1 FROM workspaces WHERE id=?3 AND owner_id=?1)").bind(user,now,workspace,target),
           db.prepare("INSERT INTO audit_logs(workspace_id,actor_id,action,entity_id,created_at) SELECT ?1,?2,'member.removed',?3,?4 WHERE EXISTS(SELECT 1 FROM memberships WHERE workspace_id=?1 AND user_id=?3 AND role!='owner') AND EXISTS(SELECT 1 FROM workspaces WHERE id=?1 AND owner_id=?2)").bind(workspace,user,target,now),
-          db.prepare("DELETE FROM memberships WHERE workspace_id=?1 AND user_id=?2 AND role!='owner' AND EXISTS(SELECT 1 FROM workspaces WHERE id=?1 AND owner_id=?3)").bind(workspace,target,user),
+          db.prepare("DELETE FROM memberships WHERE workspace_id=?1 AND user_id=?2 AND role!='owner' AND EXISTS(SELECT 1 FROM workspaces WHERE id=?1 AND owner_id=?3) RETURNING user_id").bind(workspace,target,user),
         ];
-        const result=await db.batch(statements);await changed(result[2]!);
+        const result=await db.batch(statements);changed(result[2]!);
       }
       return response({updated:true});
     }
@@ -88,14 +91,14 @@ export async function workspaceRoutes(request:Request,env:IdentityEnv,identity:I
       try{
         const results=await db.batch([
           db.prepare("UPDATE invitations SET state='expired',updated_at=?1,updated_by=?2 WHERE workspace_id=?3 AND recipient=?4 AND state='pending' AND expires_at<=?1 AND EXISTS(SELECT 1 FROM workspaces WHERE id=?3 AND owner_id=?2)").bind(now,user,workspace,recipient),
-          db.prepare("INSERT INTO invitations(id,workspace_id,recipient,role,expires_at,created_at,updated_at,updated_by) SELECT ?1,?2,?3,?4,?5,?6,?6,?7 WHERE EXISTS(SELECT 1 FROM workspaces WHERE id=?2 AND owner_id=?7) AND NOT EXISTS(SELECT 1 FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.workspace_id=?2 AND u.address=?3) AND (SELECT count(*) FROM invitations WHERE workspace_id=?2 AND state='pending' AND expires_at>?6)<100").bind(id,workspace,recipient,newRole,now+7*86400000,now,user),
-        ]);await changed(results[1]!);
+          db.prepare("INSERT INTO invitations(id,workspace_id,recipient,role,expires_at,created_at,updated_at,updated_by) SELECT ?1,?2,?3,?4,?5,?6,?6,?7 WHERE EXISTS(SELECT 1 FROM workspaces WHERE id=?2 AND owner_id=?7) AND NOT EXISTS(SELECT 1 FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.workspace_id=?2 AND u.address=?3) AND (SELECT count(*) FROM invitations WHERE workspace_id=?2 AND state='pending' AND expires_at>?6)<100 RETURNING id").bind(id,workspace,recipient,newRole,now+7*86400000,now,user),
+        ]);changed(results[1]!);
       }catch(error){if(String(error).includes('UNIQUE constraint'))return bad(409,'INVITATION_EXISTS');throw error;}
       return response({id,recipient,role:newRole,expiresAt:now+7*86400000},201);
     }
     if(parts.length===4&&method==='DELETE'){
       await body(request,[]);
-      await changed(await db.prepare("UPDATE invitations SET state='revoked',updated_at=?1,updated_by=?2 WHERE id=?3 AND workspace_id=?4 AND state='pending' AND EXISTS(SELECT 1 FROM workspaces WHERE id=?4 AND owner_id=?2)").bind(now,user,parts[3]!,workspace).run());
+      changed(await db.prepare("UPDATE invitations SET state='revoked',updated_at=?1,updated_by=?2 WHERE id=?3 AND workspace_id=?4 AND state='pending' AND EXISTS(SELECT 1 FROM workspaces WHERE id=?4 AND owner_id=?2) RETURNING id").bind(now,user,parts[3]!,workspace).run());
       return response({revoked:true});
     }
   }
@@ -108,10 +111,11 @@ export async function workspaceRoutes(request:Request,env:IdentityEnv,identity:I
       editor();const input=await body(request,['toolType','title','description']);
       if(typeof input.toolType!=='string'||!tools.includes(input.toolType))return bad(422,'INVALID_TOOL');
       const title=text(input.title,80),description=text(input.description??'',2000,0),id=uuid();
-      const result=await db.prepare("INSERT INTO drafts(id,workspace_id,tool_type,title,description,created_at,updated_at,updated_by) SELECT ?1,?2,?3,?4,?5,?6,?6,?7 WHERE EXISTS(SELECT 1 FROM memberships WHERE workspace_id=?2 AND user_id=?7 AND role IN ('owner','editor')) AND (SELECT count(*) FROM drafts WHERE workspace_id=?2)<500").bind(id,workspace,input.toolType,title,description,now,user).run();
-      if(result.meta.changes!==1)return bad(409,'DRAFT_LIMIT_OR_ACCESS_CHANGED');
+      const row=await db.prepare("INSERT INTO drafts(id,workspace_id,tool_type,title,description,created_at,updated_at,updated_by) SELECT ?1,?2,?3,?4,?5,?6,?6,?7 WHERE EXISTS(SELECT 1 FROM memberships WHERE workspace_id=?2 AND user_id=?7 AND role IN ('owner','editor')) AND (SELECT count(*) FROM drafts WHERE workspace_id=?2)<500 RETURNING id").bind(id,workspace,input.toolType,title,description,now,user).first();
+      if(!row)return bad(409,'DRAFT_LIMIT_OR_ACCESS_CHANGED');
       return response({id,tool_type:input.toolType,title,description,version:1,archived:0},201,{'ETag':'"1"'});
     }
+    if(parts.length<4)return bad(404,'NOT_FOUND');
     const draftId=parts[3]!;
     const existing=await db.prepare('SELECT id,tool_type,title,description,version,archived FROM drafts WHERE id=?1 AND workspace_id=?2').bind(draftId,workspace).first<{id:string;tool_type:string;title:string;description:string;version:number;archived:number}>();
     if(!existing)return bad(404,'NOT_FOUND');

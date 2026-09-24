@@ -13,7 +13,8 @@ export interface Revision {version:number;title:string;description:string;archiv
 export interface Page<T>{items:T[];nextCursor:string|number|null}
 export class ClientError extends Error {constructor(public code:string,public status=0){super(code);}}
 export function provider():Provider|undefined{return (window as Window & {ethereum?:Provider}).ethereum;}
-export async function api<T>(path:string,method='GET',data?:unknown,csrf='',version?:number):Promise<T>{
+let pendingLogout:Promise<void>=Promise.resolve();
+async function requestApi<T>(path:string,method:string,data:unknown,csrf:string,version?:number):Promise<T>{
   const headers:Record<string,string>={Accept:'application/json'};
   if(method!=='GET'){headers['Content-Type']='application/json';headers['X-CSRF-Token']=csrf;}
   if(version!==undefined)headers['If-Match']=`"${version}"`;
@@ -21,6 +22,12 @@ export async function api<T>(path:string,method='GET',data?:unknown,csrf='',vers
   const value=await result.json() as {data:T;error?:{code:string}};
   if(!result.ok)throw new ClientError(value.error?.code??'REQUEST_FAILED',result.status);
   return value.data;
+}
+export function api<T>(path:string,method='GET',data?:unknown,csrf='',version?:number):Promise<T>{
+  const result=requestApi<T>(path,method,data,csrf,version);
+  // A stale logout response must not clear the cookie of the next login.
+  if(path==='/auth/logout')pendingLogout=result.then(()=>undefined,()=>undefined);
+  return result;
 }
 export async function checkWallet(session:Session):Promise<void>{
   const p=provider();if(!p)throw new ClientError('WALLET_REQUIRED');
@@ -36,8 +43,11 @@ export async function connectWallet():Promise<{address:string;p:Provider}>{
   return {address:accounts[0],p};
 }
 export async function signIn(address:string,p:Provider):Promise<Session>{
+  await pendingLogout;
   const challenge=await api<{nonce:string;message:string}>('/auth/nonce','POST',{address,chainId:5042002});
   const bytes=Array.from(new TextEncoder().encode(challenge.message),v=>v.toString(16).padStart(2,'0')).join('');
   const signature=await p.request({method:'personal_sign',params:['0x'+bytes,address]});
+  const accounts=await p.request({method:'eth_accounts'});
+  if(!Array.isArray(accounts)||typeof accounts[0]!=='string'||accounts[0].toLowerCase()!==address.toLowerCase()||await p.request({method:'eth_chainId'})!=='0x4cef52')throw new ClientError('WALLET_CHANGED');
   return api<Session>('/auth/verify','POST',{nonce:challenge.nonce,message:challenge.message,signature});
 }

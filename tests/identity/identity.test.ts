@@ -1,6 +1,5 @@
-import { beforeAll, beforeEach, expect, test } from 'vitest';
+import { beforeAll, beforeEach, expect, test, vi } from 'vitest';
 import { env } from 'cloudflare:workers';
-import { fetchMock } from 'cloudflare:test';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import worker from '../../workers/identity/index';
 import schema from '../../migrations/0001_identity.sql?raw';
@@ -10,17 +9,23 @@ const bindings=env as unknown as IdentityEnv;
 const origin='https://identity.test';
 type Account=ReturnType<typeof privateKeyToAccount>;
 interface Actor {account:Account;cookie:string;csrf:string;userId:string}
-let mockCode='0x', mockChain='0x4cef52', mockMagic='0x1626ba7e'+'0'.repeat(56);
+let mockCode='0x',mockChain='0x4cef52',mockMagic='0x1626ba7e'+'0'.repeat(56);
+const rpcCalls:{method:string;params?:unknown[]}[]=[];
 beforeAll(async()=>{
   for(const statement of schema.split('-- break --').map(s=>s.trim()).filter(Boolean))await bindings.DB.prepare(statement).run();
-  fetchMock.activate();fetchMock.disableNetConnect();
-  fetchMock.get('https://rpc.testnet.arc.io').intercept({path:'/',method:'POST'}).reply(200,(options)=>{
-    const query=JSON.parse(String(options.body));
+  // Only the external RPC is a fixture. All HTTP routing, signatures, sessions,
+  // SQL transactions and triggers execute in the real local Worker/D1 runtime.
+  vi.stubGlobal('fetch',async(input:unknown,options?:{body?:unknown})=>{
+    const url=input instanceof Request?input.url:String(input);
+    if(url.replace(/\/$/,'')!=='https://rpc.testnet.arc.io')throw new Error('Unexpected network access in identity test');
+    const query=input instanceof Request?await input.json() as {id:number;method:string;params?:unknown[]}:JSON.parse(String(options?.body)) as {id:number;method:string;params?:unknown[]};
+    rpcCalls.push(query);
+    if(!['eth_chainId','eth_getCode','eth_call'].includes(query.method))throw new Error('Unexpected RPC method');
     const result=query.method==='eth_chainId'?mockChain:query.method==='eth_getCode'?mockCode:mockMagic;
-    return JSON.stringify({jsonrpc:'2.0',id:query.id,result});
-  }).persist();
+    return Response.json({jsonrpc:'2.0',id:query.id,result});
+  });
 });
-beforeEach(()=>{mockCode='0x';mockChain='0x4cef52';mockMagic='0x1626ba7e'+'0'.repeat(56);});
+beforeEach(()=>{mockCode='0x';mockChain='0x4cef52';mockMagic='0x1626ba7e'+'0'.repeat(56);rpcCalls.length=0;});
 const account=()=>privateKeyToAccount(generatePrivateKey());
 async function call(path:string,method='GET',value?:unknown,actor?:Actor,headers:Record<string,string>={}){
   const h=new Headers({'CF-Connecting-IP':crypto.randomUUID(),...headers});
@@ -90,6 +95,7 @@ test('AUTH-17 deployed ERC1271 accepts magic and invalidates revoked permission'
   const principal={account:a,cookie:`__Host-arcbox-session=${token}`,csrf:data.csrfToken,userId:data.user.id};
   expect((await call('/session','GET',undefined,principal)).status).toBe(200);mockMagic='0xffffffff'+'0'.repeat(56);
   expect((await call('/session','GET',undefined,principal)).status).toBe(401);expect(await count('SELECT count(*) n FROM sessions WHERE user_id=?1 AND revoked_at IS NOT NULL',data.user.id)).toBe(1);
+  expect(rpcCalls.filter(c=>c.method==='eth_call').every(c=>(c.params?.[0] as {gas?:string})?.gas==='0x186a0')).toBe(true);
 });
 test('AUTH-18 undeployed contract and wrong RPC chain are rejected',async()=>{const a=account(),c=await issue(a);expect((await verify(a,c,{signature:'0x1234'})).status).toBe(401);mockCode='0x60006000';mockChain='0x1';expect((await verify(a,c,{signature:'0x1234'})).status).toBe(503);});
 test('AUTH-19 nonce rate limit is durable',async()=>{const a=account();const codes=[];for(let i=0;i<11;i++)codes.push((await call('/auth/nonce','POST',{address:a.address,chainId:5042002})).status);expect(codes.slice(0,10)).toEqual(Array(10).fill(200));expect(codes[10]).toBe(429);});
