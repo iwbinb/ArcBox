@@ -31,7 +31,7 @@ test('runtime drift is rejected', () => {
   const p = clone(pkg); p.engines.node = '>=22';
   assert.throws(() => validateManifest(p, lock, tc));
 });
-test('workflow has bounded independent read-only jobs and SHA-pinned actions', () => validateWorkflow(workflow, tc.actions));
+test('workflow keeps read-only checks independent and gates Demo deploy on dev', () => validateWorkflow(workflow, tc.actions));
 test('repository write permission is rejected', () => {
   const w = clone(workflow); w.permissions.contents = 'write';
   assert.throws(() => validateWorkflow(w, tc.actions));
@@ -54,6 +54,30 @@ test('swallowed CI failures are rejected', () => {
 });
 test('production secrets and deployment environment are rejected', () => {
   const w = clone(workflow); w.jobs.required.environment = 'production';
+  assert.throws(() => validateWorkflow(w, tc.actions));
+});
+test('demo deploy cannot bypass the four required checks', () => {
+  const w = clone(workflow); w.jobs['demo-deploy'].needs = ['required'];
+  assert.throws(() => validateWorkflow(w, tc.actions));
+});
+test('demo deploy cannot run from a PR or another branch', () => {
+  const w = clone(workflow); w.jobs['demo-deploy'].if = "${{ github.event_name == 'pull_request' }}";
+  assert.throws(() => validateWorkflow(w, tc.actions));
+});
+test('Cloudflare secrets cannot reach read-only checks', () => {
+  const w = clone(workflow); w.jobs.required.steps[0].env = { CLOUDFLARE_API_TOKEN: '${{ secrets.CLOUDFLARE_API_TOKEN }}' };
+  assert.throws(() => validateWorkflow(w, tc.actions));
+});
+test('demo deploy cannot bind another environment', () => {
+  const w = clone(workflow); w.jobs['demo-deploy'].environment = 'production';
+  assert.throws(() => validateWorkflow(w, tc.actions));
+});
+test('demo deploy cannot expose secrets during build', () => {
+  const w = clone(workflow); w.jobs['demo-deploy'].steps[4].env = { CLOUDFLARE_API_TOKEN: '${{ secrets.CLOUDFLARE_API_TOKEN }}' };
+  assert.throws(() => validateWorkflow(w, tc.actions));
+});
+test('demo deploy cannot remove the stale-commit guard', () => {
+  const w = clone(workflow); w.jobs['demo-deploy'].steps = w.jobs['demo-deploy'].steps.filter((step) => step.id !== 'freshness');
   assert.throws(() => validateWorkflow(w, tc.actions));
 });
 test('scheduled / privileged PR triggers are rejected', () => {

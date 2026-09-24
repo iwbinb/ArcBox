@@ -7,6 +7,8 @@ ArcBox 是面向创作者、小团队、活动组织者的 **Arc / USDC 工具�
 > **文档基线：产品设计规格 v1.0；全阶段开发与部署总计划 v1.1。M0-A 至 M0-E 按限定技术探针范围完成；M1-A/B/C 与 D0 无资金网站预览已验收。[查看真实 Demo 预览](https://arcbox-web-demo.iwbinb.workers.dev/)。完整浏览器钱包、六工具业务、D1 云端资源及主网仍未验收。**
 > 文档包含产品、页面、交互、六工具业务规则、合约边界、数据/API、Cloudflare 部署、安全、测试和分阶段开发计划。示例均为模拟数据；不代表真实用户、交易、安全审计或获奖承诺。
 
+Demo 预览已接入 `dev` 的 [GitHub 自动部署](docs/validation/DEMO-AUTO-DEPLOY.md)：四项检查全部通过后更新 Cloudflare；PR 和 `main` 不触发发布。
+
 ## 六个工具
 
 | 工具 | 用户要完成的事 | 规格 |
@@ -33,6 +35,7 @@ ArcBox 是面向创作者、小团队、活动组织者的 **Arc / USDC 工具�
 11. **[M1-A 四类视觉基准](docs/validation/M1-A-STATUS.md)** · [独立交互原型](design/m1-a/README.md) · [视觉 QA](design/m1-a/design-qa.md)
 12. **[M1-B 正式网站骨架](docs/validation/M1-B-STATUS.md)** · [无资金演示入口](apps/web/index.html)
 13. **[M1-C / D0 Cloudflare 无资金预览验收](docs/validation/M1-C-D0.md)** · [实际预览网站](https://arcbox-web-demo.iwbinb.workers.dev/)
+14. [Demo 自动部署接入与激活状态](docs/validation/DEMO-AUTO-DEPLOY.md)
 
 开发者先读 [AGENTS.md](AGENTS.md) 和总计划 v1.1。执行拆分为 **M0—M10 共 11 个开发阶段 + D0—D3 共 4 个部署检查点**，每轮只完成一个明确子阶段，测试、提交、汇报后停止。M0 最小技术验证与 M1-C/D0 无资金预览已有对应验收证据；六工具及测试网/生产云端尚未部署。**下一子阶段是 M2-A 身份、工作区与权限。**
 

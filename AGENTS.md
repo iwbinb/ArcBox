@@ -47,6 +47,8 @@ TypeScript、React/Vite、Workers API、D1、R2、Queues/Cron、Solidity/Foundry
 
 2026-09-24 M1-C / D0 已部署仅供演示的 `arcbox-web-demo` Worker，实际网址、部署源码/版本、浏览器检查和回退证据见 [D0 验收记录](docs/validation/M1-C-D0.md)。该环境没有资金能力或 D1/R2/Queues，不得复用为测试网/生产资金入口；下一子阶段为 M2-A。
 
+2026-09-24 Demo 预览已接入 [GitHub `dev` 自动部署](docs/validation/DEMO-AUTO-DEPLOY.md)：四项 CI 检查通过才发布同一 SHA；PR 和 `main` 不发布。仓库开关 `ARCBOX_DEMO_DEPLOY_ENABLED` 已启用，`arcbox_demo` 环境只允许 `dev`。修改 Demo Worker 前须按该自动发布边界审查；需要回退时先关闭开关，防止后续推送覆盖回退版本。
+
 ## 每个 PR 的完成定义
 
 说明对应需求/测试 ID；列出变更与迁移；类型检查、单测、合约测试、关键 E2E 实际执行且结果可重现；无秘密/日志隐私泄露；说明权限和金额边界；代码与文档同步。无法执行的测试明确写 NOT RUN，并解释原因。未经用户明确授权，不进行真实资产转账、主网合约部署、账号付费开通或生产环境变更。

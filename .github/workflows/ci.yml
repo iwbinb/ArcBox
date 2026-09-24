@@ -6,13 +6,19 @@ on:
   pull_request:
     branches: [main, dev]
   workflow_dispatch:
+    inputs:
+      deploy_demo:
+        description: Deploy the no-funds demo after all checks pass
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
   run:
@@ -53,9 +59,9 @@ jobs:
         if: ${{ always() }}
         run: |
           {
-            printf '\nNo Cloudflare deployment or public-chain writes.\n'
+            printf '\nThis required job makes no Cloudflare deployment or public-chain writes.\n'
             printf 'Required job source: `%s`\n' "$GITHUB_SHA"
-            printf 'This CI run is local/read-only only. M0-D public-testnet acceptance is recorded separately in docs/validation/M0-D-PUBLIC-TESTNET.md.\n'
+            printf 'A separate dev-only Demo job may deploy after all checks pass; it cannot send public-chain writes. M0-D public-testnet acceptance is recorded separately in docs/validation/M0-D-PUBLIC-TESTNET.md.\n'
           } >> "$GITHUB_STEP_SUMMARY"
 
   arc-readonly:
@@ -137,3 +143,60 @@ jobs:
         run: |
           git diff --exit-code
           test -z "$(git ls-files --others --exclude-standard)"
+
+  demo-deploy:
+    name: Demo - deploy checked dev commit
+    if: ${{ success() && vars.ARCBOX_DEMO_DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/dev' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.deploy_demo == true)) }}
+    needs: [required, arc-readonly, m1a-visual, m1c-demo]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: arcbox_demo
+    concurrency:
+      group: arcbox-demo
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - name: Install the exact verified package manager
+        run: node scripts/toolchain/setup-pnpm.mjs
+      - name: Install committed dependency graph without re-resolution
+        run: pnpm install --frozen-lockfile
+      - name: Rebuild and recheck the isolated demo
+        run: |
+          pnpm build:demo
+          pnpm test:demo
+          git diff --exit-code
+          test -z "$(git ls-files --others --exclude-standard)"
+      - name: Skip stale commits before deploying
+        id: freshness
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/dev" --jq '.object.sha')"
+          if [[ "$current" == "$GITHUB_SHA" ]]; then
+            echo 'current=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'current=false' >> "$GITHUB_OUTPUT"
+            echo "Skipped stale demo commit: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Deploy only the no-funds Demo Worker
+        if: steps.freshness.outputs.current == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          pnpm exec wrangler deploy --config wrangler.demo.jsonc --strict --message "GitHub dev $GITHUB_SHA"
+      - name: Confirm the public version and no-funds boundary
+        if: steps.freshness.outputs.current == 'true'
+        run: |
+          node scripts/m1/verify-demo-live.mjs "$GITHUB_SHA"
+          echo "Demo preview: https://arcbox-web-demo.iwbinb.workers.dev/" >> "$GITHUB_STEP_SUMMARY"
+          echo "Verified source: $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
