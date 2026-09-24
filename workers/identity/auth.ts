@@ -1,4 +1,4 @@
-import { createPublicClient, http, hashMessage, recoverMessageAddress, type Address, type Hex } from 'viem';
+import { createPublicClient, http, hashMessage, recoverMessageAddress, encodeFunctionData, decodeFunctionResult, type Address, type Hex } from 'viem';
 import { createSiweMessage } from 'viem/siwe';
 import { address, ApiError, bad, body, CHALLENGE_COOKIE, configuration, cookie, digest, equal, randomToken, rate, response, SESSION_COOKIE, setCookie, type IdentityEnv } from './security';
 
@@ -10,9 +10,8 @@ export interface Identity {userId:string;address:Address;expiresAt:number;token:
 interface Challenge {nonce_hash:string;binding_hash:string;address:string;message:string;expires_at:number;session_until:number;created_at:number}
 interface Session {user_id:string;address:Address;expires_at:number;signer_kind:'eoa'|'erc1271';signed_message:string|null;signature:Hex|null}
 
-// The EOA path proves the address's signing key locally. Non-recoverable
-// signatures may only fall back to a deployed ERC-1271 contract on Arc Testnet.
-// No ERC-6492 factory execution, arbitrary RPC, payment or wallet private key.
+// EOA recovery proves the address's signing key. Contract signatures use only
+// bounded eth_call to a deployed ERC-1271 contract; never a deploy/factory call.
 export async function verifySignature(env:IdentityEnv,wallet:Address,message:string,signature:Hex,contractOnly=false):Promise<'eoa'|'erc1271'> {
   if(!/^0x(?:[0-9a-fA-F]{2}){1,4096}$/.test(signature))return bad(401,'INVALID_SIGNATURE');
   if(!contractOnly){
@@ -23,7 +22,9 @@ export async function verifySignature(env:IdentityEnv,wallet:Address,message:str
     if(await client.getChainId()!==5042002) return bad(503,'RPC_CHAIN_MISMATCH');
     const code=await client.getCode({address:wallet});
     if(!code || code==='0x' || code.startsWith('0xef0100'))return bad(401,'INVALID_SIGNATURE');
-    const magic=await client.readContract({address:wallet,abi:signatureAbi,functionName:'isValidSignature',args:[hashMessage(message),signature],gas:100000n});
+    const result=await client.call({to:wallet,data:encodeFunctionData({abi:signatureAbi,functionName:'isValidSignature',args:[hashMessage(message),signature]}),gas:100000n});
+    if(!result.data)return bad(401,'INVALID_SIGNATURE');
+    const magic=decodeFunctionResult({abi:signatureAbi,functionName:'isValidSignature',data:result.data});
     if(magic!=='0x1626ba7e')return bad(401,'INVALID_SIGNATURE');
     return 'erc1271';
   }catch(error){if(error instanceof ApiError)throw error; return bad(503,'SIGNATURE_CHECK_UNAVAILABLE');}
@@ -55,8 +56,8 @@ export async function login(request:Request,env:IdentityEnv):Promise<Response> {
   if(!stored||stored.expires_at<=now||stored.created_at>now||!equal(stored.binding_hash,await digest(binding))||stored.message!==input.message) return bad(401,'INVALID_CHALLENGE');
   const kind=await verifySignature(env,address(stored.address),stored.message,input.signature as Hex);
   const token=randomToken(),tokenHash=await digest(token),operation=randomToken(),userId=`5042002:${stored.address}`,old=cookie(request,SESSION_COOKIE);
-  // A unique grant gates every statement. Concurrent verification loses the
-  // UNIQUE insert and rolls back all session/user/audit effects in that batch.
+  // Each statement depends on the unique operation gate. Competing verification
+  // rolls back or inserts no session, even if its earlier SELECT saw the nonce.
   const batch=[
     env.DB.prepare('INSERT INTO auth_grants(nonce_hash,operation_id,created_at) SELECT nonce_hash,?2,?3 FROM auth_challenges WHERE nonce_hash=?1 AND expires_at>?3 AND binding_hash=?4').bind(hash,operation,Date.now(),await digest(binding)),
     env.DB.prepare('INSERT INTO users(id,address,chain_id,created_at) SELECT ?1,?2,5042002,?3 WHERE EXISTS(SELECT 1 FROM auth_grants WHERE operation_id=?4) ON CONFLICT(id) DO NOTHING').bind(userId,stored.address,now,operation),

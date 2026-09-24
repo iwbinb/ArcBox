@@ -64,7 +64,7 @@ export async function body(request: Request, keys: string[]): Promise<Record<str
   const bytes=new Uint8Array(size); let offset=0;
   for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
   let value:unknown;
-  try { value=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes)); } catch { return bad(422,'INVALID_BODY'); }
+  try { value=JSON.parse(new TextDecoder('utf-8',{fatal:true,ignoreBOM:false}).decode(bytes)); } catch { return bad(422,'INVALID_BODY'); }
   return object(value,keys);
 }
 export function text(value:unknown,max:number,min=1):string {
@@ -86,7 +86,6 @@ export async function rate(db:D1Database,key:string,limit:number,now=Date.now())
   const bucket=Math.floor(now/60000), hashed=await digest(`${key}:${bucket}`);
   const row=await db.prepare('INSERT INTO rate_limits(key,count,expires_at) VALUES(?1,1,?2) ON CONFLICT(key) DO UPDATE SET count=count+1 RETURNING count').bind(hashed,(bucket+2)*60000).first<{count:number}>();
   if(!row||row.count>limit)bad(429,'RATE_LIMITED');
-  // Bounded maintenance; no cron or external service is required in this stage.
   await db.prepare('DELETE FROM rate_limits WHERE key IN (SELECT key FROM rate_limits WHERE expires_at<?1 LIMIT 100)').bind(now).run();
 }
 export function response(data:unknown,status=200,extra:Record<string,string>={}):Response {
