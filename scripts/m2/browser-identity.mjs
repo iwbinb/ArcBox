@@ -6,27 +6,39 @@ import {join} from 'node:path';
 import {createHash} from 'node:crypto';
 import {generatePrivateKey,privateKeyToAccount} from 'viem/accounts';
 
-// The session has no Browser plugin. Use regular Playwright, an isolated local
-// Worker and a test EIP-1193 provider. This is NOT a real wallet extension test.
+// Browser plugin unavailable: run regular Playwright against a local Worker/D1.
+// The injected EIP-1193 signer is test-only, not a real wallet extension.
 const root='tests/identity/browser';
-if(!existsSync(root+'/package-lock.json')){
-  // One-time read-only bootstrap: record registry integrity before committing
-  // the isolated test lock. No unverified package is installed or executed.
-  const metadata=await(await fetch('https://registry.npmjs.org/playwright-core/1.55.1',{signal:AbortSignal.timeout(15000)})).json();
-  console.log('M2A_BROWSER_LOCK_METADATA '+JSON.stringify({version:metadata.version,dist:metadata.dist,bin:metadata.bin,engines:metadata.engines,license:metadata.license}));
-  throw new Error('BROWSER_LOCK_REQUIRED');
-}
+assert.ok(existsSync(root+'/package-lock.json'),'A committed browser dependency lock is required.');
 execFileSync('npm',['ci','--prefix',root,'--ignore-scripts','--no-audit','--no-fund'],{stdio:'inherit',timeout:60000});
 const {chromium}=await import('../../tests/identity/browser/node_modules/playwright-core/index.mjs');
+assert.equal(JSON.parse(readFileSync(root+'/node_modules/playwright-core/package.json','utf8')).version,'1.55.1');
 const temp=mkdtempSync(join(tmpdir(),'arcbox-identity-'));
 mkdirSync('reports',{recursive:true});
 const report={status:'RUNNING',browserPath:'Playwright (Browser plugin not available)',scope:'Local Worker/D1 with injected test EIP-1193 signer; no extension or public-chain transactions',sourceSha:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),checks:[],screenshots:[],consoleErrors:[],expectedHttpErrors:0};
 let server,browser,logs='';
 const signers=[privateKeyToAccount(generatePrivateKey()),privateKeyToAccount(generatePrivateKey())];
-let selected=0,deny=false;const methods=[];
+let selected=0,deny=false,acceptDialog=true;const methods=[];
 async function step(name,fn){await fn();report.checks.push({name,status:'PASS'});console.log('M2A_BROWSER_CHECK '+name);}
 async function waitUntil(fn,ms=20000){const end=Date.now()+ms;while(Date.now()<end){try{if(await fn())return;}catch{}await new Promise(r=>setTimeout(r,100));}throw new Error('WAIT_TIMEOUT');}
+async function screenshot(page,label,width){
+  await page.setViewportSize({width,height:1000});await page.evaluate(()=>document.fonts.ready);
+  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'No horizontal overflow');
+  const file=`reports/m2-a-${label}-${width}.png`;await page.screenshot({path:file,fullPage:true});
+  report.screenshots.push({file,sha256:createHash('sha256').update(readFileSync(file)).digest('hex'),width});
+}
 try{
+  if(process.platform==='linux'){
+    let fonts=execFileSync('fc-match',['-f','%{family}',':lang=zh-cn'],{encoding:'utf8'});
+    // GitHub's base Chrome image lacks Chinese glyphs. Install only the distro
+    // font package in this disposable runner; never add font files to artifacts.
+    if(!/Noto.*CJK|WenQuanYi/.test(fonts)&&process.env.GITHUB_ACTIONS==='true'){
+      execFileSync('sudo',['apt-get','update','-qq'],{stdio:'inherit',timeout:90000});
+      execFileSync('sudo',['apt-get','install','-y','--no-install-recommends','fonts-noto-cjk'],{stdio:'inherit',timeout:90000});
+      fonts=execFileSync('fc-match',['-f','%{family}',':lang=zh-cn'],{encoding:'utf8'});
+    }
+    assert.match(fonts,/Noto.*CJK|WenQuanYi/,'Install a Chinese font before visual QA.');report.chineseFont=fonts;
+  }
   const migrate=spawnSync('pnpm',['exec','wrangler','d1','migrations','apply','arcbox-identity-local','--local','--config','wrangler.identity.jsonc','--persist-to',join(temp,'state')],{stdio:'inherit',timeout:45000,env:{...process.env,CI:'true',WRANGLER_SEND_METRICS:'false'}});
   assert.equal(migrate.status,0,'Local migration must succeed.');
   server=spawn('pnpm',['exec','wrangler','dev','--config','wrangler.identity.jsonc','--ip','127.0.0.1','--port','8789','--persist-to',join(temp,'state')],{detached:true,stdio:['ignore','pipe','pipe'],env:{...process.env,WRANGLER_SEND_METRICS:'false'}});
@@ -52,6 +64,7 @@ try{
     window.__changeIdentityWallet=()=>{for(const fn of listeners.get('accountsChanged')??[])fn();};
   });
   const page=await context.newPage();page.setDefaultTimeout(12000);
+  page.on('dialog',dialog=>acceptDialog?dialog.accept():dialog.dismiss());
   page.on('pageerror',e=>report.consoleErrors.push(e.message));
   page.on('console',m=>{if(m.type()==='error'){if(/Failed to load resource/.test(m.text())&&/api\/v1\//.test(m.location().url))report.expectedHttpErrors++;else if(!m.location().url.endsWith('/favicon.ico'))report.consoleErrors.push(m.text());}});
   const visible=async text=>await page.getByText(text,{exact:true}).first().isVisible();
@@ -61,7 +74,7 @@ try{
   });
   await step('BROWSER-02 rejected signature is recoverable and does not authenticate',async()=>{
     deny=true;await page.getByRole('button',{name:'签名登录',exact:true}).click();await page.getByRole('alert').waitFor();assert.match(await page.getByRole('alert').innerText(),/取消签名/);
-    const status=await page.evaluate(async()=> (await fetch('/api/v1/session')).status);assert.equal(status,401);
+    assert.equal(await page.evaluate(async()=> (await fetch('/api/v1/session')).status),401);
   });
   let workspaceId;
   await step('BROWSER-03 real API login, create workspace and persisted draft',async()=>{
@@ -71,7 +84,7 @@ try{
     workspaceId=await page.getByLabel('当前工作区',{exact:true}).inputValue();assert.ok(workspaceId);
     await page.reload();await page.getByText('Persisted identity draft',{exact:true}).waitFor();assert.equal(await page.evaluate(()=>localStorage.length),0);
   });
-  await step('BROWSER-04 draft conflict preserves unsaved input',async()=>{
+  await step('BROWSER-04 draft conflict preserves input and latest version loads explicitly',async()=>{
     await page.getByRole('button',{name:'编辑',exact:true}).click();await page.getByLabel('草稿名称',{exact:true}).fill('Unsaved local title');
     const changed=await page.evaluate(async w=>{
       const s=(await(await fetch('/api/v1/session')).json()).data;
@@ -82,24 +95,35 @@ try{
     assert.equal(await page.getByLabel('草稿名称',{exact:true}).inputValue(),'Unsaved local title');
     await page.getByRole('button',{name:'加载最新版本',exact:true}).click();await waitUntil(async()=>await page.getByLabel('草稿名称',{exact:true}).inputValue()==='Saved in another tab');
   });
-  await step('BROWSER-05 wallet change, address-bound invitation and viewer permission',async()=>{
+  await step('BROWSER-05 dirty-form cancellation and owner desktop/mobile screenshots',async()=>{
+    await page.getByLabel('草稿名称',{exact:true}).fill('Do not discard');acceptDialog=false;
+    await page.getByRole('button',{name:'新建草稿',exact:true}).click();assert.equal(await page.getByLabel('草稿名称',{exact:true}).inputValue(),'Do not discard');
+    acceptDialog=true;await page.getByRole('button',{name:'加载最新版本',exact:true}).click();
+    await waitUntil(async()=>await page.getByLabel('草稿名称',{exact:true}).inputValue()==='Saved in another tab');
+    await screenshot(page,'owner',1440);await screenshot(page,'owner',375);await page.setViewportSize({width:1440,height:1000});
+  });
+  await step('BROWSER-06 wallet change, address-bound invitation and viewer permission',async()=>{
     await page.getByLabel('邀请钱包地址',{exact:true}).fill(signers[1].address);await page.getByRole('button',{name:'创建邀请',exact:true}).click();await waitUntil(()=>visible('邀请已创建，需目标钱包登录接受'));
     selected=1;await page.evaluate(()=>window.__changeIdentityWallet());await page.getByRole('button',{name:'签名登录',exact:true}).waitFor();await page.getByRole('button',{name:'签名登录',exact:true}).click();
     await page.getByRole('button',{name:'接受邀请',exact:true}).click();await page.getByText('当前角色只有只读权限。',{exact:true}).waitFor();
     const status=await page.evaluate(async w=>{const s=(await(await fetch('/api/v1/session')).json()).data;return(await fetch(`/api/v1/workspaces/${w}/drafts`,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':s.csrfToken},body:JSON.stringify({toolType:'deliver',title:'Denied',description:''})})).status;},workspaceId);assert.equal(status,403);
     assert.equal(await page.getByRole('button',{name:/^保存草稿/}).count(),0);
   });
-  await step('BROWSER-06 responsive screenshots, bilingual UI and no overflow',async()=>{
-    for(const width of [1440,375]){
-      await page.setViewportSize({width,height:900});
-      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
-      const file=`reports/m2-a-workspace-${width}.png`;await page.screenshot({path:file,fullPage:true});
-      report.screenshots.push({file,sha256:createHash('sha256').update(readFileSync(file)).digest('hex'),width});
-    }
+  await step('BROWSER-07 responsive viewer screenshots and bilingual UI',async()=>{
+    await screenshot(page,'viewer',1440);await screenshot(page,'viewer',375);
     await page.getByRole('button',{name:'English',exact:true}).click();await page.getByRole('heading',{name:'Workspace',exact:true}).waitFor();
+    assert.equal(await page.locator('html').getAttribute('lang'),'en');
   });
-  await step('BROWSER-07 logout revokes session, no unexpected wallet methods or exceptions',async()=>{
-    await page.getByRole('button',{name:'Sign out',exact:true}).click();await page.getByRole('button',{name:'Sign in with wallet',exact:true}).waitFor();
+  await step('BROWSER-08 revoked session on visibility refresh clears private UI',async()=>{
+    assert.equal(await page.evaluate(async()=>{const s=(await(await fetch('/api/v1/session')).json()).data;return(await fetch('/api/v1/auth/logout',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':s.csrfToken},body:'{}'})).status;}),200);
+    await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
+    await page.getByRole('button',{name:'Sign in with wallet',exact:true}).waitFor();
+    assert.equal(await page.getByTestId('session-address').count(),0);
+    assert.equal(await page.getByText('Saved in another tab',{exact:true}).count(),0);
+  });
+  await step('BROWSER-09 logout revokes session, no unexpected wallet methods or exceptions',async()=>{
+    await page.getByRole('button',{name:'Sign in with wallet',exact:true}).click();await page.getByRole('button',{name:'Sign out',exact:true}).click();
+    await page.getByRole('button',{name:'Sign in with wallet',exact:true}).waitFor();
     assert.equal(await page.evaluate(async()=> (await fetch('/api/v1/session')).status),401);
     assert.deepEqual(report.consoleErrors,[]);assert.ok(!methods.some(method=>/sendTransaction|sendRawTransaction|signTransaction/.test(method)));
   });
