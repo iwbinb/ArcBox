@@ -33,6 +33,7 @@ ArcBox 是面向创作者、小团队、活动组织者的 **Arc / USDC 工具�
 11. **[M1-A 四类视觉基准](docs/validation/M1-A-STATUS.md)** · [独立交互原型](design/m1-a/README.md) · [视觉 QA](design/m1-a/design-qa.md)
 12. **[M1-B 正式网站骨架](docs/validation/M1-B-STATUS.md)** · [无资金演示入口](apps/web/index.html)
 13. **[M1-C / D0 Cloudflare 无资金预览验收](docs/validation/M1-C-D0.md)** · [实际预览网站](https://arcbox-web-demo.iwbinb.workers.dev/)
+14. [Demo 自动部署接入与激活状态](docs/validation/DEMO-AUTO-DEPLOY.md)
 
 开发者先读 [AGENTS.md](AGENTS.md) 和总计划 v1.1。执行拆分为 **M0—M10 共 11 个开发阶段 + D0—D3 共 4 个部署检查点**，每轮只完成一个明确子阶段，测试、提交、汇报后停止。M0 最小技术验证与 M1-C/D0 无资金预览已有对应验收证据；六工具及测试网/生产云端尚未部署。**下一子阶段是 M2-A 身份、工作区与权限。**
 
