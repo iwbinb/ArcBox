@@ -47,7 +47,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Install hash-pinned Arc local execution runtime
         run: pnpm setup:arc
-      - name: Run prior regression and M0-D local verification
+      - name: Run prior regression and M2-A local verification
         env:
           ARCBOX_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: pnpm verify
@@ -55,6 +55,18 @@ jobs:
         run: |
           git diff --exit-code
           test -z "$(git ls-files --others --exclude-standard)"
+      - name: Preserve identity test reports and screenshots
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: m2-a-evidence-${{ github.sha }}
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            reports/m2-a.json
+            reports/identity-tests.json
+            reports/identity-browser.json
+            reports/m2-a-*.png
       - name: Record execution boundary
         if: ${{ always() }}
         run: |
