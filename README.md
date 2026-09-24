@@ -4,7 +4,7 @@
 
 ArcBox 是面向创作者、小团队、活动组织者的 **Arc / USDC 工具集合站**。六个工具能独立使用，也能通过订单、交付权限和已结算收入组合使用。它不是单一支付产品，也不是跳转到第三方的工具导航站；品牌不绑定 NodeStake。
 
-> **文档基线：产品设计规格 v1.0；全阶段开发与部署总计划 v1.1，2026-09-23。M0-A 至 M0-E 按限定技术探针范围完成，M1-A 四类视觉基准已在独立原型中通过 QA；Cloudflare 云端、完整浏览器钱包、六工具及主网仍未验收。不是已经部署的产品应用。**
+> **文档基线：产品设计规格 v1.0；全阶段开发与部署总计划 v1.1。M0-A 至 M0-E 按限定技术探针范围完成，M1-A 视觉基准已形成，M1-B 无资金网站骨架已通过本地 QA；Cloudflare 云端、完整浏览器钱包、六工具业务及主网仍未验收。不是已经部署的产品应用。**
 > 文档包含产品、页面、交互、六工具业务规则、合约边界、数据/API、Cloudflare 部署、安全、测试和分阶段开发计划。示例均为模拟数据；不代表真实用户、交易、安全审计或获奖承诺。
 
 ## 六个工具
@@ -31,8 +31,9 @@ ArcBox 是面向创作者、小团队、活动组织者的 **Arc / USDC 工具�
 9. [M0-C 验收报告](docs/validation/M0-C-STATUS.md) · [运行时探针与用例矩阵](docs/validation/RUNTIME-PROBES.md)
 10. **[M0-E 技术验证收口](docs/validation/M0-E-CLOSURE.md)** · [M0-D 公开测试网验收](docs/validation/M0-D-PUBLIC-TESTNET.md) · [历史开发报告](docs/validation/M0-D-STATUS.md) · [Arc 探针复现及边界](docs/validation/ARC-COMPATIBILITY.md) · [M0 进度](docs/validation/M0-STATUS.md)
 11. **[M1-A 四类视觉基准](docs/validation/M1-A-STATUS.md)** · [独立交互原型](design/m1-a/README.md) · [视觉 QA](design/m1-a/design-qa.md)
+12. **[M1-B 正式网站骨架](docs/validation/M1-B-STATUS.md)** · [无资金演示入口](apps/web/index.html)
 
-开发者先读 [AGENTS.md](AGENTS.md) 和总计划 v1.1。执行拆分为 **M0—M10 共 11 个开发阶段 + D0—D3 共 4 个部署检查点**，每轮只完成一个明确子阶段，测试、提交、汇报后停止。M0 的最小技术验证已按 [收口报告](docs/validation/M0-E-CLOSURE.md)核对；M1-A 视觉基准也已形成，但六工具或云端尚未部署。**下一子阶段是 M1-B 网站骨架。**
+开发者先读 [AGENTS.md](AGENTS.md) 和总计划 v1.1。执行拆分为 **M0—M10 共 11 个开发阶段 + D0—D3 共 4 个部署检查点**，每轮只完成一个明确子阶段，测试、提交、汇报后停止。M0 的最小技术验证已按 [收口报告](docs/validation/M0-E-CLOSURE.md)核对；M1-A 视觉基准与 M1-B 本地网站骨架已形成，但六工具或云端尚未部署。**下一子阶段是 M1-C 预览验收与 D0。**
 
 ## 工具链、运行时与 Arc 探针复现
 

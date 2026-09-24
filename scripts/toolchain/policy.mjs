@@ -7,8 +7,19 @@ export function validateManifest(pkg, lock, tc) {
   assert.equal(pkg.engines?.pnpm, tc.pnpm);
   assert.equal(lock.lockfileVersion, '9.0');
   assert.equal(lock.settings?.autoInstallPeers, false);
-  assert.deepEqual(pkg.dependencies ?? {}, {}, 'M0 probes have no product dependencies.');
+  const productDependencies = {
+    '@phosphor-icons/react': '2.1.10',
+    react: '19.2.0',
+    'react-dom': '19.2.0',
+  };
+  assert.deepEqual(pkg.dependencies, productDependencies, 'M1 website dependencies must stay pinned.');
   assert.deepEqual(pkg.devDependencies, tc.dependencies);
+  const runtimeImporter = lock.importers?.['.']?.dependencies;
+  assert.deepEqual(Object.keys(runtimeImporter ?? {}).sort(), Object.keys(productDependencies).sort());
+  for (const [name, version] of Object.entries(productDependencies)) {
+    assert.equal(runtimeImporter[name].specifier, version, `${name}: manifest/lock mismatch`);
+    assert.ok(lock.packages[`${name}@${version}`], `${name}: package entry missing`);
+  }
   const importer = lock.importers?.['.']?.devDependencies;
   assert.deepEqual(Object.keys(importer ?? {}).sort(), Object.keys(tc.dependencies).sort());
   for (const [name, version] of Object.entries(tc.dependencies)) {
