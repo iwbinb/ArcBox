@@ -1,0 +1,12 @@
+{
+  "name": "arcbox-identity-local",
+  "main": "workers/identity/index.ts",
+  "compatibility_date": "2026-09-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "send_metrics": false,
+  "assets": { "directory": "./dist/identity", "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api", "/api/*"] },
+  "vars": { "APP_ENV": "local", "APP_ORIGIN": "http://127.0.0.1:8789", "CHAIN_ID": "5042002", "AUTH_ENABLED": "true", "RPC_URL": "https://rpc.testnet.arc.io" },
+  "d1_databases": [{ "binding": "DB", "database_name": "arcbox-identity-local", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }]
+}
