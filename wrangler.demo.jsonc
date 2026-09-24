@@ -1,0 +1,23 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "arcbox-web-demo",
+  "main": "workers/demo/src/index.ts",
+  "compatibility_date": "2026-09-24",
+  "send_metrics": false,
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 0.01
+  },
+  "vars": {
+    "APP_ENV": "demo",
+    "PAYMENTS_ENABLED": "false"
+  },
+  "assets": {
+    "directory": "./dist/web",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api", "/api/*"]
+  }
+}

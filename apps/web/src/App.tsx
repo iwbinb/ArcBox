@@ -293,6 +293,7 @@ function Header({
   go: (path: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  useEffect(() => setOpen(false), [route]);
   const nav = (path: string) => {
     go(path);
     setOpen(false);

@@ -112,3 +112,28 @@ jobs:
         run: |
           git diff --exit-code
           test -z "$(git ls-files --others --exclude-standard)"
+
+  m1c-demo:
+    name: M1-C demo Worker build and route checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - name: Install the exact verified package manager
+        run: node scripts/toolchain/setup-pnpm.mjs
+      - name: Install committed dependency graph without re-resolution
+        run: pnpm install --frozen-lockfile
+      - name: Build demo assets with source version
+        run: pnpm build:demo
+      - name: Check Worker, SPA and no-funds routes locally
+        run: pnpm test:demo
+      - name: Confirm source and lockfiles remain unchanged
+        run: |
+          git diff --exit-code
+          test -z "$(git ls-files --others --exclude-standard)"
