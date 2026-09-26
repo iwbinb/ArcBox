@@ -2,20 +2,39 @@ import { expect, test, vi } from 'vitest';
 import { env } from 'cloudflare:workers';
 import { toHex } from 'viem';
 import type { Identity } from '../../workers/identity/auth';
-import { CHAIN_ID, type Order, type OrderEnv } from '../../workers/orders/domain';
+import { CHAIN_ID, type OrderEnv } from '../../workers/orders/domain';
 import { freezeRule, order, registerLocalDeployment, submitAttempt } from '../../workers/orders/store';
 import { ChainReader } from '../../workers/orders/chain-reader';
 import { ingestVerifiedReceipt } from '../../workers/orders/projection';
 import { refreshAttempt, scanDeployment } from '../../workers/orders/sync';
+import { context, call, json, newHash, addReceipt } from './helpers';
 
 type Raw=Record<string,any>;
 export function registerLocalEvmReplay():void{
+  test('API-CONTRACT strict amount and purpose types are rejected before database writes',async()=>{
+    const c=await context();
+    for(const amountU6 of [' 1000000','1000000 ',1000000]){
+      const result=await call(`/workspaces/${c.workspaceId}/order-rules`,'POST',{draftId:c.draftId,deploymentId:c.deployment.id,amountU6},c.owner,{'If-Match':'"1"'});
+      expect(result.status).toBe(422);
+    }
+    expect((await call(`/orders/${c.order.id}/transactions`,'POST',{txHash:newHash(),purpose:['payment']},c.buyer)).status).toBe(422);
+  });
+  test('API-CONTRACT repeated confirmed hint does not report payment=false',async()=>{
+    const c=await context(),txHash=addReceipt(c),path=`/orders/${c.order.id}/transactions`;
+    const initial=await call(path,'POST',{txHash,purpose:'payment'},c.buyer);expect(initial.status).toBe(202);
+    const attempt=(await json(initial)).data.attempt;
+    expect((await call(`${path}/${attempt.id}/refresh`,'POST',{},c.buyer)).status).toBe(200);
+    const repeated=await json(await call(path,'POST',{txHash,purpose:'payment'},c.buyer));
+    expect(repeated.data.attempt.status).toBe('CONFIRMED');
+    expect(repeated.data.confirmationNotInferredFromSubmission).toBe(true);
+    expect(repeated.data.paymentConfirmed).toBeUndefined();
+  });
   test('EVM-REPLAY actual loopback Arc approve/pay/refund/settlement receipts produce one exact projection',async()=>{
     const capture=JSON.parse((env as unknown as {ORDER_EVM_CAPTURE:string}).ORDER_EVM_CAPTURE) as Raw;
     expect(capture.scope).toBe('REAL_LOCAL_ARC_RECEIPTS_NOT_PUBLIC_TESTNET');expect(capture.status).toBe('PASS');expect(capture.chainId).toBe(CHAIN_ID);expect(capture.publicChainWrites).toBe(false);
     const bindings=env as unknown as OrderEnv,m=capture.metadata;
-    // Only the transport is recorded. The production parser, cross-checks,
-    // intent validation, event projection and D1 transactions execute here.
+    // Transport responses are captured from the actual loopback chain. The real
+    // parser, cross-checks, projection and D1 transactions execute during replay.
     vi.stubGlobal('fetch',async(input:unknown,options?:{body?:unknown})=>{
       const target=input instanceof Request?input.url:String(input);
       if(target.replace(/\/$/,'')!=='https://rpc.testnet.arc.io')throw new Error('Unexpected replay target');

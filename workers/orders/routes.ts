@@ -1,7 +1,7 @@
 import { authenticate, type Identity } from '../identity/auth';
-import { bad, body, expectedVersion, rate, response, text } from '../identity/security';
+import { bad, body, expectedVersion, rate, response } from '../identity/security';
 import { member } from '../identity/workspaces';
-import { hash32, orderSummary, ordersConfiguration, type Order, type OrderEnv, type Purpose } from './domain';
+import { hash32, orderSummary, ordersConfiguration, uint, type Order, type OrderEnv, type Purpose } from './domain';
 import { authorizedOrder, createIntent, detail, freezeRule, rule, submitAttempt, transactionPlan } from './store';
 import { refreshAttempt } from './sync';
 
@@ -47,7 +47,7 @@ export async function orderRoutes(request:Request,env:OrderEnv):Promise<Response
       await member(env.DB,workspaceId,identity.userId,['owner']);
       if(method==='POST'){
         const input=await body(request,['draftId','deploymentId','amountU6']);
-        const frozen=await freezeRule(env,identity,workspaceId,{draftId:identifier(input.draftId),draftVersion:expectedVersion(request),deploymentId:identifier(input.deploymentId),amountU6:text(input.amountU6,78)});
+        const frozen=await freezeRule(env,identity,workspaceId,{draftId:identifier(input.draftId),draftVersion:expectedVersion(request),deploymentId:identifier(input.deploymentId),amountU6:uint(input.amountU6).toString()});
         return response({id:frozen.id,rulesHash:frozen.rules_hash,snapshot:JSON.parse(frozen.canonical_json)},201);
       }
       if(method==='GET'){
@@ -76,9 +76,11 @@ export async function orderRoutes(request:Request,env:OrderEnv):Promise<Response
   }
   if(p.length===3&&p[2]==='transactions'&&method==='POST'){
     const input=await body(request,['txHash','purpose']);
-    if(!['approval','payment','business'].includes(String(input.purpose)))bad(422,'INVALID_PURPOSE');
+    if(typeof input.purpose!=='string'||!['approval','payment','business'].includes(input.purpose))bad(422,'INVALID_PURPOSE');
     const attempt=await submitAttempt(env,identity,orderId,hash32(input.txHash),input.purpose as Purpose);
-    return response({attempt,acceptedForVerification:true,paymentConfirmed:false},202);
+    // A duplicate hint may already be confirmed. Do not invent a contradictory
+    // payment=false flag; the order projection is the source of payment status.
+    return response({attempt,acceptedForVerification:true,confirmationNotInferredFromSubmission:true},202);
   }
   if(p.length===5&&p[2]==='transactions'&&p[4]==='refresh'&&method==='POST'){
     await body(request,[]);await authorizedOrder(env.DB,identity,orderId,true);

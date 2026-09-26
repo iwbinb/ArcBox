@@ -1,15 +1,16 @@
+import assert from 'node:assert/strict';
 import { spawnSync, execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 
 mkdirSync('reports',{recursive:true});
-rmSync('reports/orders-tests.json',{force:true});
+for(const file of ['orders-tests.json','order-evm-summary.json','order-evm-capture.json'])rmSync(`reports/${file}`,{force:true});
+const sha256=file=>createHash('sha256').update(readFileSync(file)).digest('hex');
 const report={
-  schemaVersion:1,stage:'M2-B',scope:'LOCAL_WORKER_D1_WITH_RPC_FIXTURES',
+  schemaVersion:1,stage:'M2-B',scope:'LOCAL_WORKER_D1_FIXTURES_AND_REAL_LOCAL_ARC_RECEIPT_REPLAY',
   sourceSha:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),
   prHeadSha:process.env.ARCBOX_PR_HEAD_SHA||null,runId:process.env.GITHUB_RUN_ID||null,
-  lockSha256:createHash('sha256').update(readFileSync('pnpm-lock.yaml')).digest('hex'),
-  startedAt:new Date().toISOString(),status:'RUNNING',steps:[],
+  lockSha256:sha256('pnpm-lock.yaml'),startedAt:new Date().toISOString(),status:'RUNNING',steps:[],
   hostedOrdersDeployed:false,publicChainWrites:false,
 };
 try{
@@ -26,7 +27,15 @@ try{
   report.tests={total:result.numTotalTests,passed:result.numPassedTests,failed:result.numFailedTests,pending:result.numPendingTests};
   report.cases=result.testResults.flatMap(file=>file.assertionResults.map(test=>({name:test.fullName,status:test.status})));
   if(!result.success||result.numTotalTests<1||result.numFailedTests||result.numPendingTests||report.cases.some(test=>test.status!=='passed'))throw new Error('Order test report is incomplete');
-  report.status='PASS_LOCAL';
+  assert.ok(report.cases.some(test=>test.name.startsWith('EVM-REPLAY ')&&test.status==='passed'),'Actual local receipt replay must execute, not only compile or capture.');
+  const evm=JSON.parse(readFileSync('reports/order-evm-summary.json','utf8'));
+  assert.equal(evm.sourceSha,report.sourceSha);
+  assert.equal(evm.scope,'REAL_LOCAL_ARC_RECEIPTS_NOT_PUBLIC_TESTNET');
+  assert.equal(evm.status,'PASS');assert.equal(evm.publicChainWrites,false);
+  assert.equal(evm.flows,2);assert.equal(evm.businessEvents,8);assert.equal(evm.localTransactions,11);
+  assert.equal(evm.probeBalanceU6,'0');assert.equal(evm.allowanceU6,'0');
+  assert.equal(evm.captureSha256,sha256('reports/order-evm-capture.json'));
+  report.localEvm=evm;report.status='PASS_LOCAL';
 }catch(error){
   report.status='FAIL';report.failure=error instanceof Error?error.message:'Verification failed';process.exitCode=1;
 }finally{
