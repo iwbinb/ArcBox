@@ -10,6 +10,7 @@ export function useOperations(){
   const [catalog,setCatalog]=useState<CatalogItem[]>([]),[catalogId,setCatalogId]=useState('sample-v1'),[series,setSeries]=useState(''),[ops,setOps]=useState<Operations|null>(null),[recovery,setRecovery]=useState<Recovery|null>(null),[orderId,setOrderId]=useState('');
   const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[revision,setRevision]=useState(0);
   const epoch=useRef(0),loads=useRef(0),sessionRef=useRef<Session|null>(null),pendingUpload=useRef<{key:string;workspaceId:string;catalogId:string;seriesId:string}|null>(null);
+  const logoutPending=useRef<Promise<unknown>>(Promise.resolve());
   const t=(zh:string,en:string)=>lang==='zh'?zh:en;
   const current=spaces.find(s=>s.id===wid),edit=current?.role==='owner'||current?.role==='editor',operate=current?.role==='owner'||current?.role==='operator';
   const date=(n:number)=>new Date(n).toLocaleString(lang==='zh'?'zh-CN':'en-US');
@@ -17,7 +18,12 @@ export function useOperations(){
     epoch.current++;loads.current++;sessionRef.current=null;pendingUpload.current=null;
     setSession(null);setSpaces([]);setWid('');setFiles(empty());setJobs(empty());setNotes(empty());setActivity(empty());setRecovery(null);setOps(null);setCatalog([]);setOrderId('');setNotice('');setBusy(false);setLoading(false);
   }
-  function invalidate(){const old=sessionRef.current;clear();if(old)void api('/auth/logout','POST',{},old.csrfToken).catch(()=>{});}
+  function invalidate(){
+    const old=sessionRef.current;clear();
+    // Finish the old logout response before accepting a new login cookie.
+    // Otherwise its delayed Set-Cookie deletion could erase the new session.
+    if(old)logoutPending.current=api('/auth/logout','POST',{},old.csrfToken).catch(()=>{});
+  }
   function failure(e:unknown){
     const code=e instanceof ClientError?e.code:(e as {code?:number})?.code===4001?'SIGNATURE_CANCELLED':'REQUEST_FAILED';
     if((e instanceof ClientError&&e.status===401)||['WALLET_CHANGED','WRONG_CHAIN'].includes(code))invalidate();
@@ -26,7 +32,7 @@ export function useOperations(){
       PLATFORM_DISABLED:['此环境未启用文件与任务后台；公开 Demo 不包含这些能力。','This environment does not enable the platform. The public demo excludes these capabilities.'],
       NOT_FOUND:['记录不存在或你没有访问权限。','Record not found or access is unavailable.'],FORBIDDEN:['当前角色没有此操作权限。','Your role cannot perform this action.'],
       NEW_FILE_VERSION_REQUIRED:['文件完整性校验失败，不能强制放行。请创建新的受控版本。','Integrity check failed. Create a new controlled version; approval cannot be bypassed.'],
-      JOB_VERSION_OR_ACCESS_CHANGED:['任务或权限已变化，请刷新后核对。','Task or access changed. Refresh and review.'],FILE_ACCESS_NOT_AVAILABLE:['文件暂不可访问。请检查订单、退款状态或保留期限，不要重复付款。','File access is unavailable. Check the order, refund state or retention period. Do not pay again.'],
+      JOB_VERSION_OR_ACCESS_CHANGED:['任务或权限已变化，请刷新后核对。','Task or access changed. Refresh and review.'],RECOVERY_STATE_CHANGED:['订单状态刚刚发生变化，请重新核验。','Order state just changed. Verify again.'],FILE_ACCESS_NOT_AVAILABLE:['文件暂不可访问。请检查订单、退款状态或保留期限，不要重复付款。','File access is unavailable. Check the order, refund state or retention period. Do not pay again.'],
       FILE_UNAVAILABLE:['文件暂不可用，可刷新或联系工作区管理员。','File is temporarily unavailable. Refresh or contact the workspace owner.'],REQUEST_FAILED:['请求未完成，请刷新核对后重试。','Request did not complete. Refresh and check before retrying.'],
     };
     setError((messages[code]??[code,code])[lang==='zh'?0:1]);
@@ -67,8 +73,12 @@ export function useOperations(){
   }
   async function login(){
     if(busy)return;setBusy(true);setError('');const e=epoch.current;
-    try{const{address,p}=await connectWallet();const s=await signIn(address,p);if(e!==epoch.current){void api('/auth/logout','POST',{},s.csrfToken).catch(()=>{});return;}sessionRef.current=s;setSession(s);await loadSession();}
-    catch(err){if(e===epoch.current)failure(err);}finally{if(e===epoch.current)setBusy(false);}
+    try{
+      await logoutPending.current;if(e!==epoch.current)return;
+      const{address,p}=await connectWallet();const s=await signIn(address,p);
+      if(e!==epoch.current){logoutPending.current=api('/auth/logout','POST',{},s.csrfToken).catch(()=>{});return;}
+      sessionRef.current=s;setSession(s);await loadSession();
+    }catch(err){if(e===epoch.current)failure(err);}finally{if(e===epoch.current)setBusy(false);}
   }
   async function put(f:FileItem,s:Session,check:()=>void){
     const c=catalog.find(v=>v.id===f.catalogId);if(!c)throw new ClientError('CONTROLLED_FILE_REQUIRED');check();
@@ -104,8 +114,8 @@ export function useOperations(){
       if(kind==='activity')setActivity(v=>({items:[...v.items,...result.items as ActivityItem[]],nextCursor:result.nextCursor}));
     },false);
   }
-  function changeWorkspace(value:string){loads.current++;setWid(value);setSeries('');setFiles(empty());setJobs(empty());setActivity(empty());setOps(null);setError('');setNotice('');}
-  function switchTab(value:Tab){loads.current++;setTab(value);setError('');setNotice('');}
+  function changeWorkspace(value:string){if(value===wid)return;loads.current++;setWid(value);setSeries('');setFiles(empty());setJobs(empty());setActivity(empty());setOps(null);setError('');setNotice('');}
+  function switchTab(value:Tab){if(value===tab)return;loads.current++;setTab(value);setError('');setNotice('');}
   function changeOrder(value:string){setOrderId(value.trim());setRecovery(null);}
   function openRecovery(id:string){changeOrder(id);switchTab('recovery');}
   function refresh(){if(tab==='recovery'&&recovery)recover();else setRevision(v=>v+1);}
