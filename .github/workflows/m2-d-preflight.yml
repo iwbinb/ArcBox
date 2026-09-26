@@ -1,0 +1,62 @@
+name: ArcBox M2-D cloud read-only preflight
+
+on:
+  push:
+    branches: [dev]
+    paths:
+      - '.github/workflows/m2-d-preflight.yml'
+      - 'scripts/m2/cloud-preflight.mjs'
+      - 'tests/cloud/preflight.test.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arcbox-m2d-readonly
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  inspect:
+    if: ${{ github.repository == 'iwbinb/ArcBox' && github.ref == 'refs/heads/dev' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # Reuse existing authorization for GET metadata only, never for testnet writes.
+    environment: arcbox_demo
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - name: Check metadata reader without secrets or dependencies
+        run: node --test tests/cloud/preflight.test.mjs
+      - name: Preserve tracked source for offline development review
+        run: git archive --format=tar --output="$RUNNER_TEMP/arcbox-m2d-source.tar" HEAD
+      - name: Read existing account metadata only
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/m2/cloud-preflight.mjs
+      - name: Preserve sanitized result
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: m2-d-preflight-${{ github.sha }}
+          retention-days: 7
+          if-no-files-found: error
+          path: reports/m2-d-preflight.json
+      - name: Preserve tracked source only (no runner configuration or credentials)
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: m2-d-source-${{ github.sha }}
+          retention-days: 1
+          if-no-files-found: error
+          path: ${{ runner.temp }}/arcbox-m2d-source.tar
