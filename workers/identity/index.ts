@@ -3,10 +3,12 @@ import { ApiError, bad, checkOrigin, configuration, response } from './security'
 import { workspaceRoutes } from './workspaces';
 import { isOrderRoute, orderRoutes } from '../orders/routes';
 import { syncTick } from '../orders/sync';
-import type { OrderEnv } from '../orders/domain';
+import { isPlatformRoute, platformRoutes } from '../platform/routes';
+import { handleQueue, platformTick } from '../platform/jobs';
+import type { PlatformEnv } from '../platform/domain';
 
 export default {
-  async fetch(request:Request,env:OrderEnv):Promise<Response>{
+  async fetch(request:Request,env:PlatformEnv):Promise<Response>{
     const requestId=crypto.randomUUID();
     try{
       const path=new URL(request.url).pathname;
@@ -22,6 +24,7 @@ export default {
         else if(path==='/api/v1/auth/verify'&&request.method==='POST')result=await login(request,env);
         else if(path==='/api/v1/session'&&request.method==='GET')result=sessionResponse(await authenticate(request,env));
         else if(path==='/api/v1/auth/logout'&&request.method==='POST')result=await logout(env,await authenticate(request,env,true));
+        else if(isPlatformRoute(path))result=await platformRoutes(request,env);
         else if(isOrderRoute(path))result=await orderRoutes(request,env);
         else{
           if(!/^\/api\/v1\/(workspaces|invitations)(\/|$)/.test(path))bad(404,'NOT_FOUND');
@@ -35,12 +38,14 @@ export default {
       return env.ASSETS.fetch(request);
     }catch(error){
       const known=error instanceof ApiError;
-      // Never serialize SQL errors, signed messages, cookies or provider bodies.
-      return Response.json({error:{code:known?error.code:'INTERNAL_ERROR',requestId}}, {status:known?error.status:500,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Request-Id':requestId,...(known&&error.status===429?{'Retry-After':'60'}:{})}});
+      return Response.json({error:{code:known?error.code:'INTERNAL_ERROR',requestId}}, {status:known?error.status:500,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Request-Id':requestId,...(known&&error.status===429?{'Retry-After':'60'}:{})}});
     }
   },
-  async scheduled(_controller:ScheduledController,env:OrderEnv,ctx:ExecutionContext):Promise<void>{
-    // No hosted Cron is configured in M2-B. The handler is opt-in and local-only.
+  async scheduled(_controller:ScheduledController,env:PlatformEnv,ctx:ExecutionContext):Promise<void>{
     ctx.waitUntil(syncTick(env));
+    if(env.PLATFORM_ENABLED==='true')ctx.waitUntil(platformTick(env));
+  },
+  async queue(batch:MessageBatch<unknown>,env:PlatformEnv):Promise<void>{
+    await handleQueue(batch,env);
   },
 };

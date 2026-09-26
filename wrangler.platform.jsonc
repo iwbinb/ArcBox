@@ -1,0 +1,20 @@
+{
+  "name": "arcbox-platform-local",
+  "main": "workers/identity/index.ts",
+  "compatibility_date": "2026-09-21",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "send_metrics": false,
+  "assets": { "directory": "./dist/identity", "binding": "ASSETS", "not_found_handling": "single-page-application", "run_worker_first": ["/api", "/api/*"] },
+  "vars": { "APP_ENV": "local", "APP_ORIGIN": "http://127.0.0.1:8790", "CHAIN_ID": "5042002", "AUTH_ENABLED": "true", "RPC_URL": "https://rpc.testnet.arc.io", "ORDERS_ENABLED": "true", "ORDER_SYNC_ENABLED": "false", "PLATFORM_ENABLED": "true" },
+  "d1_databases": [{ "binding": "DB", "database_name": "arcbox-platform-local", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations" }],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "arcbox-platform-local-files" }],
+  "queues": {
+    "producers": [{ "binding": "JOBS", "queue": "arcbox-platform-local" }],
+    "consumers": [
+      { "queue": "arcbox-platform-local", "max_batch_size": 1, "max_batch_timeout": 1, "max_retries": 4, "dead_letter_queue": "arcbox-platform-dead-local" },
+      { "queue": "arcbox-platform-dead-local", "max_batch_size": 1, "max_batch_timeout": 1, "max_retries": 4 }
+    ]
+  }
+}
