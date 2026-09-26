@@ -49,7 +49,9 @@ TypeScript、React/Vite、Workers API、D1、R2、Queues/Cron、Solidity/Foundry
 
 2026-09-24 Demo 预览已接入 [GitHub `dev` 自动部署](docs/validation/DEMO-AUTO-DEPLOY.md)：四项 CI 检查通过才发布同一 SHA；PR 和 `main` 不发布。仓库开关 `ARCBOX_DEMO_DEPLOY_ENABLED` 已启用，`arcbox_demo` 环境只允许 `dev`。修改 Demo Worker 前须按该自动发布边界审查；需要回退时先关闭开关，防止后续推送覆盖回退版本。
 
-2026-09-24 M2-A 已加入独立 `workers/identity`、D1 身份/协作迁移和 `identity` 构建的 `/app` 工作区。范围、API、实际 Worker/D1/Chrome 测试和未测项见 [M2-A 验收记录](docs/validation/M2-A-STATUS.md)。普通 Demo 构建不启用身份模块；不得将全零本地 database_id 配置用于部署，不得删除既有 Demo 禁用资金的门禁。只有本地实现与测试证据，不是 Cloudflare 身份后台已上线或真实扩展已验证。阶段 PR 审查后，下一子阶段为 **M2-B 订单与链上同步**，每轮继续只完成一个子阶段。
+2026-09-24 M2-A 已加入独立 `workers/identity`、D1 身份/协作迁移和 `identity` 构建的 `/app` 工作区。范围、API、实际 Worker/D1/Chrome 测试和未测项见 [M2-A 验收记录](docs/validation/M2-A-STATUS.md)。普通 Demo 构建不启用身份模块；不得将全零本地 database_id 配置用于部署，不得删除既有 Demo 禁用资金的门禁。只有本地实现与测试证据，不是 Cloudflare 身份后台已上线或真实扩展已验证。当时下一子阶段为 M2-B。
+
+2026-09-26 M2-B 已加入 `workers/orders`、追加订单迁移、严格整数金额与规则快照、幂等订单、只读交易计划、回执/事件核验、账本/outbox 和有界补扫恢复。实际测试、源码/CI 证据、API、复现与限制见 [M2-B 验收记录](docs/validation/M2-B-STATUS.md)。当前 `m2b-probe-v1` 只允许显式启用的本地模式，没有正式工具 ABI、签名报价、服务端广播、托管订单部署或新增付款页面；不能把本地探针当正式资金合约。原始事件先形成持久 inbox，再原子应用订单/账本/outbox；继续开发必须保留失败恢复、重复去重和固定资金分类。阶段 PR 审查后，下一子阶段为 **M2-C 文件、任务与后台**，每轮继续只完成一个子阶段。
 
 ## 每个 PR 的完成定义
 

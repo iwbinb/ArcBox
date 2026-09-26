@@ -47,7 +47,7 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Install hash-pinned Arc local execution runtime
         run: pnpm setup:arc
-      - name: Run prior regression and M2-A local verification
+      - name: Run prior regression and M2 local verification
         env:
           ARCBOX_PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: pnpm verify
@@ -67,12 +67,24 @@ jobs:
             reports/identity-tests.json
             reports/identity-browser.json
             reports/m2-a-*.png
+      - name: Preserve order verification reports only
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: m2-b-evidence-${{ github.sha }}
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            reports/m2-b.json
+            reports/orders-tests.json
+            reports/order-evm-summary.json
       - name: Record execution boundary
         if: ${{ always() }}
         run: |
           {
             printf '\nThis required job makes no Cloudflare deployment or public-chain writes.\n'
             printf 'Required job source: `%s`\n' "$GITHUB_SHA"
+            printf 'M2-B runs a loopback Arc probe and replays its captured receipts into local Worker/D1. It does not deploy a hosted order service or production tool contract.\n'
             printf 'A separate dev-only Demo job may deploy after all checks pass; it cannot send public-chain writes. M0-D public-testnet acceptance is recorded separately in docs/validation/M0-D-PUBLIC-TESTNET.md.\n'
           } >> "$GITHUB_STEP_SUMMARY"
 
