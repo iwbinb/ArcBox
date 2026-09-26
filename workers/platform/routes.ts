@@ -22,14 +22,30 @@ function cursor(request:Request,kind:'uuid'|'number'|'notification'='uuid'):stri
 function page<T extends {id:string|number}>(rows:T[]){return {items:rows.slice(0,25),nextCursor:rows.length>25?rows[24]!.id:null};}
 const JOB_FIELDS='id,type,state,generation,attempts,dispatch_attempts,available_at,lease_until,version,last_error,created_at,updated_at';
 async function recovery(env:PlatformEnv,i:Identity,orderId:string) {
-  const o=await authorizedOrder(env.DB,i,orderId),result=await detail(env.DB,i,orderId);
-  const [ent,files,jobs]=await Promise.all([
-    env.DB.prepare('SELECT file_id,state,retention_until FROM file_entitlements WHERE order_id=?1').bind(o.id).first<{file_id:string;state:string;retention_until:number}>(),
+  const result=await detail(env.DB,i,orderId),o=result.order;
+  const [ent,files,jobs,deploymentStatus]=await Promise.all([
+    env.DB.prepare('SELECT file_id,wallet,state,retention_until FROM file_entitlements WHERE order_id=?1').bind(o.id).first<{file_id:string;wallet:string;state:string;retention_until:number}>(),
     env.DB.prepare('SELECT f.* FROM file_rule_bindings b JOIN file_versions f ON f.id=b.file_id WHERE b.rule_id=?1').bind(o.rule_id).first<FileVersion>(),
     env.DB.prepare(`SELECT ${JOB_FIELDS.split(',').map(k=>'j.'+k).join(',')} FROM platform_jobs j JOIN order_outbox b ON b.id=j.source_id WHERE b.order_id=?1 AND j.workspace_id=?2 ORDER BY j.created_at DESC LIMIT 25`).bind(o.id,o.workspace_id).all(),
+    env.DB.prepare('SELECT status FROM order_deployments WHERE id=?1').bind(o.deployment_id).first<string>('status'),
   ]);
-  const own=o.payer===i.address.toLowerCase(),available=own&&!!ent&&ent.state==='ACTIVE'&&ent.retention_until>Date.now()&&files?.state==='READY'&&o.payment_state==='CONFIRMED'&&!['REFUND_CREDIT','REFUNDED'].includes(o.funds_state)&&o.delivery_state!=='REVOKED';
-  return {...result,file:files?fileSummary(files):null,entitlement:ent,jobs:jobs.results,downloadEligible:available,actions:available?['REQUEST_DOWNLOAD']:o.payment_state==='UNPAID'?['CHECK_TRANSACTION_BEFORE_REPAYING']:['REFRESH_STATUS','CONTACT_WORKSPACE'],scope:'LOCAL_PLATFORM_ONLY',fundsActionsEnabled:false};
+  // This is a UI summary, not a download authorization. Actual downloads repeat
+  // all checks after reading R2 and atomically consume a session-bound grant.
+  if((await authorizedOrder(env.DB,i,orderId)).version!==o.version)bad(409,'RECOVERY_STATE_CHANGED');
+  if(!await env.DB.prepare('SELECT user_id FROM sessions WHERE token_hash=?1 AND user_id=?2 AND revoked_at IS NULL AND expires_at>?3').bind(i.tokenHash,i.userId,Date.now()).first())bad(401,'SESSION_EXPIRED');
+  const own=o.payer===i.address.toLowerCase();
+  const available=own&&!!ent&&ent.wallet===o.payer&&ent.file_id===files?.id&&ent.state==='ACTIVE'&&ent.retention_until>Date.now()&&files?.state==='READY'&&deploymentStatus==='ACTIVE'&&o.payment_state==='CONFIRMED'&&['LOCKED','SETTLEMENT_CREDIT','SETTLED'].includes(o.funds_state)&&o.delivery_state!=='REVOKED';
+  return {
+    ...result,
+    // The new recovery endpoint intentionally exposes a stable presentation
+    // contract. Existing M2-B order-detail response fields remain unchanged.
+    order:{id:o.id,version:o.version,paymentState:o.payment_state,fundsState:o.funds_state,deliveryState:o.delivery_state,businessState:o.business_state,amountU6:o.amount_u6,source:'VERIFIED_EVENT_PROJECTION'},
+    file:files?fileSummary(files):null,
+    entitlement:ent?{file_id:ent.file_id,state:ent.state,retention_until:ent.retention_until}:null,
+    jobs:jobs.results,downloadEligible:available,indexerStatus:deploymentStatus,
+    actions:available?['REQUEST_DOWNLOAD']:o.payment_state==='UNPAID'?['CHECK_TRANSACTION_BEFORE_REPAYING']:['REFRESH_STATUS','CONTACT_WORKSPACE'],
+    scope:'LOCAL_PLATFORM_ONLY',fundsActionsEnabled:false,
+  };
 }
 export async function platformRoutes(request:Request,env:PlatformEnv):Promise<Response> {
   platformConfiguration(env);
