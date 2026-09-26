@@ -78,6 +78,18 @@ jobs:
             reports/m2-b.json
             reports/orders-tests.json
             reports/order-evm-summary.json
+      - name: Preserve platform verification reports and screenshots
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: m2-c-evidence-${{ github.sha }}
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            reports/m2-c.json
+            reports/platform-tests.json
+            reports/platform-browser.json
+            reports/m2-c-*.png
       - name: Record execution boundary
         if: ${{ always() }}
         run: |
@@ -85,6 +97,7 @@ jobs:
             printf '\nThis required job makes no Cloudflare deployment or public-chain writes.\n'
             printf 'Required job source: `%s`\n' "$GITHUB_SHA"
             printf 'M2-B runs a loopback Arc probe and replays its captured receipts into local Worker/D1. It does not deploy a hosted order service or production tool contract.\n'
+            printf 'M2-C verifies local D1/R2/Queues and browser interactions. Its browser paid-order fixture is seeded locally, not a public-chain payment.\n'
             printf 'A separate dev-only Demo job may deploy after all checks pass; it cannot send public-chain writes. M0-D public-testnet acceptance is recorded separately in docs/validation/M0-D-PUBLIC-TESTNET.md.\n'
           } >> "$GITHUB_STEP_SUMMARY"
 
