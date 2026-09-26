@@ -11,7 +11,7 @@ export const GRANT_MS = 60_000;
 export const LEASE_MS = 60_000;
 export const MAX_ATTEMPTS = 5;
 export interface Envelope { schema: 1; jobId: string; generation: number }
-export interface PlatformEnv extends OrderEnv { PLATFORM_ENABLED?: string; FILES?: R2Bucket; JOBS?: Queue<Envelope> }
+export interface PlatformEnv extends OrderEnv { PLATFORM_ENABLED?: string | undefined; FILES?: R2Bucket; JOBS?: Queue<Envelope> }
 export interface FileVersion {
   id:string; workspace_id:string; series_id:string; version:number; catalog_id:string;
   name:string; mime:string; bytes:number; sha256:string; storage_key:string;
@@ -50,7 +50,7 @@ export async function catalogEntry(id:unknown) {
   const entry=(await catalog()).find(f=>f.id===id);if(!entry)return bad(422,'CONTROLLED_FILE_REQUIRED');return entry;
 }
 export function fileSummary(f:FileVersion) {
-  return {id:f.id,seriesId:f.series_id,version:f.version,name:f.name,mime:f.mime,bytes:f.bytes,sha256:f.sha256,state:f.state,uploadUntil:f.upload_until,createdAt:f.created_at,review:'CONTROLLED_SAMPLE_NOT_MALWARE_SCAN'};
+  return {id:f.id,seriesId:f.series_id,catalogId:f.catalog_id,version:f.version,name:f.name,mime:f.mime,bytes:f.bytes,sha256:f.sha256,state:f.state,uploadUntil:f.upload_until,createdAt:f.created_at,review:'CONTROLLED_SAMPLE_NOT_MALWARE_SCAN'};
 }
 export function userGuard(db:D1Database,op:string,i:Identity,workspaceId:string,roles:readonly string[]):D1PreparedStatement {
   // Roles are code constants, never caller input. Recheck after external awaits.
