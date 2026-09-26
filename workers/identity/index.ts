@@ -1,9 +1,12 @@
 import { authenticate, challenge, login, logout, sessionResponse } from './auth';
-import { ApiError, bad, checkOrigin, configuration, response, type IdentityEnv } from './security';
+import { ApiError, bad, checkOrigin, configuration, response } from './security';
 import { workspaceRoutes } from './workspaces';
+import { isOrderRoute, orderRoutes } from '../orders/routes';
+import { syncTick } from '../orders/sync';
+import type { OrderEnv } from '../orders/domain';
 
 export default {
-  async fetch(request:Request,env:IdentityEnv):Promise<Response>{
+  async fetch(request:Request,env:OrderEnv):Promise<Response>{
     const requestId=crypto.randomUUID();
     try{
       const path=new URL(request.url).pathname;
@@ -19,6 +22,7 @@ export default {
         else if(path==='/api/v1/auth/verify'&&request.method==='POST')result=await login(request,env);
         else if(path==='/api/v1/session'&&request.method==='GET')result=sessionResponse(await authenticate(request,env));
         else if(path==='/api/v1/auth/logout'&&request.method==='POST')result=await logout(env,await authenticate(request,env,true));
+        else if(isOrderRoute(path))result=await orderRoutes(request,env);
         else{
           if(!/^\/api\/v1\/(workspaces|invitations)(\/|$)/.test(path))bad(404,'NOT_FOUND');
           const identity=await authenticate(request,env,mutating);
@@ -34,5 +38,9 @@ export default {
       // Never serialize SQL errors, signed messages, cookies or provider bodies.
       return Response.json({error:{code:known?error.code:'INTERNAL_ERROR',requestId}}, {status:known?error.status:500,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','X-Request-Id':requestId,...(known&&error.status===429?{'Retry-After':'60'}:{})}});
     }
+  },
+  async scheduled(_controller:ScheduledController,env:OrderEnv,ctx:ExecutionContext):Promise<void>{
+    // No hosted Cron is configured in M2-B. The handler is opt-in and local-only.
+    ctx.waitUntil(syncTick(env));
   },
 };
