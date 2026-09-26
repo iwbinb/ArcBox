@@ -10,6 +10,21 @@ function safeNumber(value:bigint|number|null):number {
   if(value===null || value<0 || value>Number.MAX_SAFE_INTEGER)return bad(503,'INVALID_CHAIN_INDEX');
   const result=Number(value);if(!Number.isSafeInteger(result))return bad(503,'INVALID_CHAIN_INDEX');return result;
 }
+function chainHash(value:unknown):Hex {try{return hash32(value);}catch{return bad(503,'INVALID_RPC_HASH');}}
+function chainAddress(value:unknown):Hex {try{return wallet(value);}catch{return bad(503,'INVALID_RPC_ADDRESS');}}
+function bytes(value:unknown):Hex {
+  if(typeof value!=='string'||!/^0x(?:[0-9a-fA-F]{2})*$/.test(value)||value.length>262146)return bad(503,'INVALID_RPC_BYTES');return value.toLowerCase() as Hex;
+}
+function rpcFailure(error:unknown):never {
+  if(error instanceof ApiError)throw error;
+  let cause:unknown=error;
+  for(let depth=0;depth<8&&cause&&typeof cause==='object';depth++){
+    const row=cause as {code?:unknown;cause?:unknown};
+    if(row.code===-32005)return bad(503,'RPC_RANGE_LIMIT');
+    cause=row.cause;
+  }
+  return bad(503,'RPC_UNAVAILABLE');
+}
 export const logFingerprint=(l:ChainLog):string=>JSON.stringify([l.address,l.topics,l.data,l.transactionHash,l.blockHash,l.blockNumber,l.transactionIndex,l.logIndex]);
 
 /** Fixed official testnet, named read-only operations only. No caller-supplied
@@ -20,52 +35,52 @@ export class ChainReader {
     if(ordersConfiguration(env)!=='https://rpc.testnet.arc.io')bad(503,'INVALID_ORDER_RPC');
   }
   private async read<T>(operation:()=>Promise<T>):Promise<T>{
-    try{return await operation();}catch(error){if(error instanceof ApiError)throw error;return bad(503,'RPC_UNAVAILABLE');}
+    try{return await operation();}catch(error){return rpcFailure(error);}
   }
   async assertChain():Promise<void>{if(await this.read(()=>this.client.getChainId())!==CHAIN_ID)bad(503,'RPC_CHAIN_MISMATCH');}
   async block(number?:number):Promise<ChainBlock>{
     const b=await this.read(()=>this.client.getBlock(number===undefined?{blockTag:'latest'}:{blockNumber:BigInt(number)}));
-    const result={number:safeNumber(b.number),hash:hash32(b.hash),timestamp:safeNumber(b.timestamp)};
+    const result={number:safeNumber(b.number),hash:chainHash(b.hash),timestamp:safeNumber(b.timestamp)};
     if(number!==undefined&&number!==result.number)bad(503,'RPC_BLOCK_MISMATCH');return result;
   }
   async verifyDeployment(deployment:Deployment,block:number):Promise<void>{
     if(deployment.chain_id!==CHAIN_ID||deployment.status!=='ACTIVE'||block<deployment.deployment_block)bad(503,'DEPLOYMENT_UNAVAILABLE');
     const code=await this.read(()=>this.client.getCode({address:deployment.address,blockNumber:BigInt(block)}));
-    if(!code||code==='0x'||keccak256(code)!==deployment.code_hash)bad(503,'DEPLOYMENT_CODE_MISMATCH');
+    if(!code||code==='0x'||keccak256(bytes(code))!==deployment.code_hash)bad(503,'DEPLOYMENT_CODE_MISMATCH');
   }
   async transaction(hash:Hex):Promise<ChainTransaction|null>{
     try{
       const t=await this.client.getTransaction({hash});
-      if(t.hash.toLowerCase()!==hash)bad(503,'RPC_TRANSACTION_MISMATCH');
-      return {hash,from:wallet(t.from),to:wallet(t.to),input:t.input.toLowerCase() as Hex,value:t.value,nonce:safeNumber(t.nonce),blockNumber:t.blockNumber===null?null:safeNumber(t.blockNumber),blockHash:t.blockHash===null?null:hash32(t.blockHash),transactionIndex:t.transactionIndex===null?null:safeNumber(t.transactionIndex)};
-    }catch(error){if(error instanceof TransactionNotFoundError)return null;if(error instanceof ApiError)throw error;return bad(503,'RPC_UNAVAILABLE');}
+      if(chainHash(t.hash)!==hash)bad(503,'RPC_TRANSACTION_MISMATCH');
+      return {hash,from:chainAddress(t.from),to:chainAddress(t.to),input:bytes(t.input),value:t.value,nonce:safeNumber(t.nonce),blockNumber:t.blockNumber===null?null:safeNumber(t.blockNumber),blockHash:t.blockHash===null?null:chainHash(t.blockHash),transactionIndex:t.transactionIndex===null?null:safeNumber(t.transactionIndex)};
+    }catch(error){if(error instanceof TransactionNotFoundError)return null;return rpcFailure(error);}
   }
   async receipt(hash:Hex):Promise<VerifiedReceipt|null>{
     try{
       const r=await this.client.getTransactionReceipt({hash});
-      if(r.transactionHash.toLowerCase()!==hash||r.logs.length>256||!['success','reverted'].includes(r.status))bad(503,'INVALID_RECEIPT');
+      if(chainHash(r.transactionHash)!==hash||r.logs.length>256||!['success','reverted'].includes(r.status))bad(503,'INVALID_RECEIPT');
       const n=safeNumber(r.blockNumber),[block,transaction]=await Promise.all([this.block(n),this.transaction(hash)]);
-      if(!transaction||transaction.blockNumber!==n||transaction.blockHash!==block.hash||hash32(r.blockHash)!==block.hash||transaction.transactionIndex!==r.transactionIndex||transaction.from!==wallet(r.from)||transaction.to!==wallet(r.to))return bad(503,'RPC_RECEIPT_MISMATCH');
+      if(!transaction||transaction.blockNumber!==n||transaction.blockHash!==block.hash||chainHash(r.blockHash)!==block.hash||transaction.transactionIndex!==r.transactionIndex||transaction.from!==chainAddress(r.from)||transaction.to!==chainAddress(r.to))return bad(503,'RPC_RECEIPT_MISMATCH');
       const seen=new Set<number>();
       const logs=r.logs.map(l=>{
-        const result={address:wallet(l.address),topics:l.topics.map(hash32),data:l.data.toLowerCase() as Hex,transactionHash:hash32(l.transactionHash),blockHash:hash32(l.blockHash),blockNumber:safeNumber(l.blockNumber),transactionIndex:safeNumber(l.transactionIndex),logIndex:safeNumber(l.logIndex)};
-        if(l.removed||result.transactionHash!==hash||result.blockHash!==block.hash||result.blockNumber!==n||result.transactionIndex!==transaction.transactionIndex||seen.has(result.logIndex))bad(503,'RPC_LOG_MISMATCH');
+        const result={address:chainAddress(l.address),topics:l.topics.map(chainHash),data:bytes(l.data),transactionHash:chainHash(l.transactionHash),blockHash:chainHash(l.blockHash),blockNumber:safeNumber(l.blockNumber),transactionIndex:safeNumber(l.transactionIndex),logIndex:safeNumber(l.logIndex)};
+        if(l.removed!==false||result.transactionHash!==hash||result.blockHash!==block.hash||result.blockNumber!==n||result.transactionIndex!==transaction.transactionIndex||seen.has(result.logIndex))bad(503,'RPC_LOG_MISMATCH');
         seen.add(result.logIndex);return result;
       }).sort((a,b)=>a.logIndex-b.logIndex);
       if(r.status==='reverted'&&logs.length!==0)bad(503,'REVERTED_RECEIPT_HAS_LOGS');
       if((await this.block(n)).hash!==block.hash)bad(503,'RPC_BLOCK_MISMATCH');
       return {hash,from:transaction.from,to:transaction.to,status:r.status,block,transactionIndex:transaction.transactionIndex!,transaction,logs,gasUsed:r.gasUsed,effectiveGasPrice:r.effectiveGasPrice};
-    }catch(error){if(error instanceof TransactionReceiptNotFoundError)return null;if(error instanceof ApiError)throw error;return bad(503,'RPC_UNAVAILABLE');}
+    }catch(error){if(error instanceof TransactionReceiptNotFoundError)return null;return rpcFailure(error);}
   }
   async logs(deployment:Deployment,from:number,to:number):Promise<ChainLog[]>{
     const result=await this.read(()=>this.client.getLogs({address:deployment.address,fromBlock:BigInt(from),toBlock:BigInt(to)}));
     if(result.length>256)bad(503,'RPC_RANGE_LIMIT');
     const logs:ChainLog[]=[];
     for(const l of result){
-      if(l.removed||wallet(l.address)!==deployment.address)bad(503,'RPC_LOG_RANGE_MISMATCH');
+      if(l.removed!==false||chainAddress(l.address)!==deployment.address)bad(503,'RPC_LOG_RANGE_MISMATCH');
       const blockNumber=safeNumber(l.blockNumber);if(blockNumber<from||blockNumber>to)bad(503,'RPC_LOG_RANGE_MISMATCH');
       if(l.topics[0]?.toLowerCase()!==EVENT_TOPIC)continue;
-      logs.push({address:deployment.address,topics:l.topics.map(hash32),data:l.data.toLowerCase() as Hex,transactionHash:hash32(l.transactionHash),blockHash:hash32(l.blockHash),blockNumber,transactionIndex:safeNumber(l.transactionIndex),logIndex:safeNumber(l.logIndex)});
+      logs.push({address:deployment.address,topics:l.topics.map(chainHash),data:bytes(l.data),transactionHash:chainHash(l.transactionHash),blockHash:chainHash(l.blockHash),blockNumber,transactionIndex:safeNumber(l.transactionIndex),logIndex:safeNumber(l.logIndex)});
     }
     return logs.sort((a,b)=>a.blockNumber-b.blockNumber||a.transactionIndex-b.transactionIndex||a.logIndex-b.logIndex);
   }
