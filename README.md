@@ -4,10 +4,10 @@
 
 ArcBox 是面向创作者、小团队、活动组织者的 **Arc / USDC 工具集合站**。六个工具能独立使用，也能通过订单、交付权限和已结算收入组合使用。它不是单一支付产品，也不是跳转到第三方的工具导航站；品牌不绑定 NodeStake。
 
-> **文档基线：产品设计规格 v1.0；全阶段开发与部署总计划 v1.1。M0-A 至 M0-E 按限定技术探针范围完成；M1-A/B/C 与 D0 无资金网站预览已验收；M2-A 身份、工作区与权限和 M2-B 共享订单/同步管线已有本地验收证据。[查看 Demo 预览](https://arcbox-web-demo.iwbinb.workers.dev/)。身份/订单后台的 Cloudflare 云端部署、真实浏览器扩展订单流程、六工具业务及主网仍未验收。**
+> **文档基线：产品设计规格 v1.0；全阶段开发与部署总计划 v1.1。M0-A 至 M0-E 按限定技术探针范围完成；M1-A/B/C 与 D0 无资金网站预览已验收；M2-A 身份/权限、M2-B 订单/同步及 M2-C 受控文件/任务/后台已有本地验收证据。[查看 Demo 预览](https://arcbox-web-demo.iwbinb.workers.dev/)。新后台的 Cloudflare 云端部署、真实浏览器扩展联调、六工具业务及主网仍未验收。**
 > 文档包含产品、页面、交互、六工具业务规则、合约边界、数据/API、Cloudflare 部署、安全、测试和分阶段开发计划。示例均为模拟数据；不代表真实用户、交易、安全审计或获奖承诺。
 
-Demo 预览已接入 `dev` 的 [GitHub 自动部署](docs/validation/DEMO-AUTO-DEPLOY.md)：四项检查全部通过后更新 Cloudflare；PR 和 `main` 不触发发布。**M2-A 身份 Worker 和 M2-B 订单服务不属于 Demo 部署。**
+Demo 预览已接入 `dev` 的 [GitHub 自动部署](docs/validation/DEMO-AUTO-DEPLOY.md)：四项检查全部通过后更新 Cloudflare；PR 和 `main` 不触发发布。**M2-A/B/C 身份、订单、文件和任务后台不属于 Demo 部署。**
 
 ## 六个工具
 
@@ -38,10 +38,11 @@ Demo 预览已接入 `dev` 的 [GitHub 自动部署](docs/validation/DEMO-AUTO-D
 14. [Demo 自动部署接入与激活状态](docs/validation/DEMO-AUTO-DEPLOY.md)
 15. **[M2-A 身份、工作区、草稿与权限验收](docs/validation/M2-A-STATUS.md)**
 16. **[M2-B 订单、回执、账本与链上同步验收](docs/validation/M2-B-STATUS.md)**
+17. **[M2-C 文件、任务与后台收口验收](docs/validation/M2-C-STATUS.md)** · [操作说明与 API](docs/validation/M2-C-OPERATIONS.md)
 
-开发者先读 [AGENTS.md](AGENTS.md) 和总计划 v1.1。执行拆分为 **M0—M10 共 11 个开发阶段 + D0—D3 共 4 个部署检查点**，每轮只完成一个明确子阶段，测试、提交、汇报后停止。M0 最小技术验证与 M1-C/D0 无资金预览已有对应验收证据；M2-A/B 的本地实现不等于云端后台已开通。**本阶段 PR 审查后，下一子阶段是 M2-C 文件、任务与后台。**
+开发者先读 [AGENTS.md](AGENTS.md) 和总计划 v1.1。执行拆分为 **M0—M10 共 11 个开发阶段 + D0—D3 共 4 个部署检查点**，每轮只完成一个明确子阶段，测试、提交、汇报后停止。M0 最小技术验证与 M1-C/D0 无资金预览已有对应验收证据；M2-A/B/C 的本地实现不等于云端后台已开通。**本阶段 PR 合并后，下一子阶段是 M2-D 云端联调与安全回归。**
 
-## 工具链、运行时、身份与订单测试
+## 工具链、运行时与共享后台测试
 
 使用 `.node-version` 的 Node 22.23.2 和 `packageManager` 指定的 pnpm 10.34.5。在已验证的 Linux x64 环境中运行：
 
@@ -51,11 +52,11 @@ pnpm setup:arc
 pnpm verify
 ```
 
-没有 pnpm 时参照 [工具链说明](docs/validation/TOOLCHAIN.md)。`setup:arc` 校验并安装固定 Arc 本地执行器；`verify` 执行静态/类型检查、Node/Workers/Assets 回归、Arc 探针、真实本地订单回执捕获与 Worker/D1 回放、本地身份 API 和 Chrome 交互测试。不会创建 Cloudflare 资源或广播公开链交易。浏览器测试需 Chrome 和中文字体，具体范围见 M2-A 报告。
+没有 pnpm 时参照 [工具链说明](docs/validation/TOOLCHAIN.md)。`setup:arc` 校验并安装固定 Arc 本地执行器；`verify` 执行静态/类型检查、Node/Workers/Assets 回归、Arc 探针、真实本地订单回执捕获与 Worker/D1 回放、身份 API、文件/任务运行时及 Chrome 交互测试。不会创建 Cloudflare 资源或广播公开链交易。浏览器测试需 Chrome 和中文字体，具体范围见 M2-A/C 报告。
 
-`pnpm test:bindings`、`pnpm test:assets`、`pnpm test:arc`、`pnpm test:identity`、`pnpm test:orders` 可分别运行。`pnpm verify:orders` 另外核对本轮源码和回执捕获证据。公开测试网只读命令为 `pnpm probe:arc` 和 `pnpm probe:arc:sdk`，后者检查有界历史回执，不发送新交易。公开写入口不接入常驻 CI；已验收的专用钱包不可重复执行探针。
+`pnpm test:bindings`、`pnpm test:assets`、`pnpm test:arc`、`pnpm test:identity`、`pnpm test:orders`、`pnpm test:platform` 可分别运行。`pnpm verify:orders` 核对本轮源码和回执捕获证据；`pnpm verify:platform` 额外验证平台构建、11 个浏览器场景及截图哈希。公开测试网只读命令为 `pnpm probe:arc` 和 `pnpm probe:arc:sdk`，后者检查有界历史回执，不发送新交易。公开写入口不接入常驻 CI；已验收的专用钱包不可重复执行探针。
 
-`apps/web` 已包含 M1 网站骨架，不再只是编译探针。普通构建/公开 Demo 仍无资金能力；`pnpm build:identity` 的隔离构建在 `/app` 提供 M2-A 工作区，并连接本地 `workers/identity`，操作说明见 [M2-A](docs/validation/M2-A-STATUS.md)。M2-B 只有显式启用的本地订单适配器、API 和同步管线，尚无正式工具合约、签名报价或公开订单付款页面。不能直接将本地全零数据库 ID 或订单探针配置用于云部署。
+`apps/web` 已包含 M1 网站骨架，不再只是编译探针。普通构建/公开 Demo 仍无资金能力；`pnpm build:identity` 的隔离构建在 `/app` 提供工作区、在 `/app/operations` 提供文件/任务/通知/日志/恢复。使用独立本地平台配置和持久化目录运行的方法见 [M2-C 操作说明](docs/validation/M2-C-OPERATIONS.md)。目前文件仅限两份受控样本，通知仅站内；没有任意客户上传、病毒扫描或真实工具付款页面。**全零数据库 ID、local-only 订单适配器及 `wrangler.platform.jsonc` 不得直接用于云部署。**
 
 ## 架构基线
 

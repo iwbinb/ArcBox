@@ -51,7 +51,9 @@ TypeScript、React/Vite、Workers API、D1、R2、Queues/Cron、Solidity/Foundry
 
 2026-09-24 M2-A 已加入独立 `workers/identity`、D1 身份/协作迁移和 `identity` 构建的 `/app` 工作区。范围、API、实际 Worker/D1/Chrome 测试和未测项见 [M2-A 验收记录](docs/validation/M2-A-STATUS.md)。普通 Demo 构建不启用身份模块；不得将全零本地 database_id 配置用于部署，不得删除既有 Demo 禁用资金的门禁。只有本地实现与测试证据，不是 Cloudflare 身份后台已上线或真实扩展已验证。当时下一子阶段为 M2-B。
 
-2026-09-26 M2-B 已加入 `workers/orders`、追加订单迁移、严格整数金额与规则快照、幂等订单、只读交易计划、回执/事件核验、账本/outbox 和有界补扫恢复。实际测试、源码/CI 证据、API、复现与限制见 [M2-B 验收记录](docs/validation/M2-B-STATUS.md)。当前 `m2b-probe-v1` 只允许显式启用的本地模式，没有正式工具 ABI、签名报价、服务端广播、托管订单部署或新增付款页面；不能把本地探针当正式资金合约。原始事件先形成持久 inbox，再原子应用订单/账本/outbox；继续开发必须保留失败恢复、重复去重和固定资金分类。阶段 PR 审查后，下一子阶段为 **M2-C 文件、任务与后台**，每轮继续只完成一个子阶段。
+2026-09-26 M2-B 已加入 `workers/orders`、追加订单迁移、严格整数金额与规则快照、幂等订单、只读交易计划、回执/事件核验、账本/outbox 和有界补扫恢复。实际测试、源码/CI 证据、API、复现与限制见 [M2-B 验收记录](docs/validation/M2-B-STATUS.md)。当前 `m2b-probe-v1` 只允许显式启用的本地模式，没有正式工具 ABI、签名报价、服务端广播、托管订单部署或新增付款页面；不能把本地探针当正式资金合约。原始事件先形成持久 inbox，再原子应用订单/账本/outbox；继续开发必须保留失败恢复、重复去重和固定资金分类。当时下一子阶段为 M2-C。
+
+2026-09-26 M2-C 已完成受控文件不可变版本、订单文件权限、限时单次下载、outbox/Queue 任务与死信恢复、站内通知、操作日志和 `/app/operations` 的本地验收。范围、失败修复、真实运行证据与 M2-D 交接见 [M2-C 收口记录](docs/validation/M2-C-STATUS.md) 和 [操作/API 说明](docs/validation/M2-C-OPERATIONS.md)。列表完成状态必须绑定当前视图，保留延迟响应、会话刷新、日志分页及旧响应隔离测试。不得放宽受控文件、退款撤销、会话绑定和任务 generation 约束；不得将 `wrangler.platform.jsonc` 或全零数据库 ID 直接部署。浏览器使用注入测试签名器，部分业务种子明确为本地 fixture，不是真实付款或扩展钱包证据。**本阶段 PR 合并后，下一子阶段为 M2-D 云端联调与安全回归**；需要新云资源、费用、真实钱包交互或公开链写入时，按已授权范围核验并在必要处暂停，不顺带进入六工具或主网发布。
 
 ## 每个 PR 的完成定义
 
