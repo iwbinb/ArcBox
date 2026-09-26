@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "stage": "M2-D",
+  "scope": "CLOUDFLARE_READ_ONLY_PREFLIGHT",
+  "sourceSha": "6f2f93dbeedd3c1f47d52d1893968ed6f9f8ea1e",
+  "checkedAt": "2026-09-26T08:45:50.994Z",
+  "status": "BLOCKED",
+  "credentialsPresent": true,
+  "accountFingerprint": "68cc6d0cfd4b",
+  "cloudMutations": false,
+  "publicChainWrites": false,
+  "checks": [
+    {
+      "name": "workers-subdomain",
+      "status": "BLOCKED",
+      "httpStatus": 403,
+      "codes": [
+        10000
+      ]
+    },
+    {
+      "name": "workers",
+      "status": "PASS",
+      "httpStatus": 200,
+      "inventory": "FIRST_PAGE_ONLY_NOT_PROOF_OF_ABSENCE",
+      "arcboxResources": [
+        "arcbox-web-demo"
+      ]
+    },
+    {
+      "name": "d1",
+      "status": "BLOCKED",
+      "httpStatus": 401,
+      "codes": [
+        10000
+      ]
+    },
+    {
+      "name": "r2",
+      "status": "BLOCKED",
+      "httpStatus": 403,
+      "codes": [
+        10000
+      ]
+    },
+    {
+      "name": "queues",
+      "status": "BLOCKED",
+      "httpStatus": 403,
+      "codes": [
+        10000
+      ]
+    }
+  ],
+  "note": "Successful reads do not prove write permission, available quota, billing approval or completed deployment."
+}
