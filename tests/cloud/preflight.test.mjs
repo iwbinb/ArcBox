@@ -50,3 +50,14 @@ test('CLOUD-07 malformed inventory cannot be called a successful read', async ()
   const r = await preflight({ ...options, fetcher: async () => ok(null) });
   assert.equal(r.status, 'BLOCKED');
 });
+
+// A successful HTTP response with absent routing metadata is still not ready.
+test('CLOUD-08 missing or malformed workers subdomain does not pass readiness', async () => {
+  for (const subdomain of [undefined, '', 'example.invalid', '<unsafe>', 'x'.repeat(64)]) {
+    const r = await preflight({ ...options, fetcher: async url => ok(
+      url.includes('/workers/subdomain') ? { subdomain } : url.includes('/r2/') ? { buckets: [] } : [],
+    ) });
+    assert.equal(r.status, 'BLOCKED');
+    assert.equal(r.checks.find(c => c.name === 'workers-subdomain').status, 'BLOCKED');
+  }
+});

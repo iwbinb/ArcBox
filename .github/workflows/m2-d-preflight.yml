@@ -21,12 +21,9 @@ defaults:
     shell: bash
 
 jobs:
-  inspect:
-    if: ${{ github.repository == 'iwbinb/ArcBox' && github.ref == 'refs/heads/dev' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+  checks:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    # Reuse existing authorization for GET metadata only, never for testnet writes.
-    environment: arcbox_demo
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
@@ -37,14 +34,39 @@ jobs:
           package-manager-cache: false
       - name: Check metadata reader without secrets or dependencies
         run: node --test tests/cloud/preflight.test.mjs
-      - name: Preserve tracked source for offline development review
-        run: git archive --format=tar --output="$RUNNER_TEMP/arcbox-m2d-source.tar" HEAD
+      - name: Explain an unconfigured gate without claiming cloud acceptance
+        if: ${{ vars.ARCBOX_M2D_PREFLIGHT_ENABLED != 'true' }}
+        run: echo 'M2-D cloud inspection NOT RUN. Configure the protected arcbox_testnet environment before enabling the repository preflight flag. Unit checks are not cloud acceptance.' >> "$GITHUB_STEP_SUMMARY"
+
+  inspect:
+    needs: checks
+    # The repository flag is set only AFTER the user creates protection rules.
+    # Do not implicitly create an unprotected environment or reuse Demo secrets.
+    if: ${{ success() && vars.ARCBOX_M2D_PREFLIGHT_ENABLED == 'true' && github.repository == 'iwbinb/ArcBox' && github.ref == 'refs/heads/dev' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment: arcbox_testnet
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - name: Confirm this is still the current dev source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/dev" --jq '.object.sha')"
+          test "$current" = "$GITHUB_SHA"
       - name: Read existing account metadata only
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: node scripts/m2/cloud-preflight.mjs
-      - name: Preserve sanitized result
+      - name: Preserve sanitized result only
         if: ${{ always() }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
@@ -52,11 +74,3 @@ jobs:
           retention-days: 7
           if-no-files-found: error
           path: reports/m2-d-preflight.json
-      - name: Preserve tracked source only (no runner configuration or credentials)
-        if: ${{ always() }}
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: m2-d-source-${{ github.sha }}
-          retention-days: 1
-          if-no-files-found: error
-          path: ${{ runner.temp }}/arcbox-m2d-source.tar

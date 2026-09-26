@@ -6,7 +6,7 @@ const API = 'https://api.cloudflare.com/client/v4';
 const SHA = /^[a-f0-9]{40}$/;
 const NAME = /^arcbox[-_][a-z0-9_-]{1,100}$/;
 
-// Metadata only. Credentials never leave the runner and never enter this report.
+// Metadata only. Credentials go only to the fixed Cloudflare API, never to reports.
 export async function preflight({ accountId = '', token = '', sourceSha = '', fetcher = fetch } = {}) {
   const report = {
     schemaVersion: 1, stage: 'M2-D', scope: 'CLOUDFLARE_READ_ONLY_PREFLIGHT',
@@ -23,7 +23,7 @@ export async function preflight({ accountId = '', token = '', sourceSha = '', fe
   report.accountFingerprint = createHash('sha256').update(accountId).digest('hex').slice(0, 12);
   const base = `/accounts/${accountId}`;
   const routes = [
-    { name: 'workers-subdomain', path: `${base}/workers/subdomain`, pick: data => ({ configured: typeof data?.subdomain === 'string' && /^[a-z0-9-]+$/.test(data.subdomain) }) },
+    { name: 'workers-subdomain', path: `${base}/workers/subdomain`, pick: data => subdomain(data) },
     { name: 'workers', path: `${base}/workers/scripts`, pick: data => ({ arcboxResources: resources(data, 'id') }) },
     { name: 'd1', path: `${base}/d1/database?per_page=100`, pick: data => ({ arcboxResources: resources(data, 'name') }) },
     { name: 'r2', path: `${base}/r2/buckets?per_page=100`, pick: data => ({ arcboxResources: resources(data?.buckets, 'name') }) },
@@ -54,6 +54,12 @@ export async function preflight({ accountId = '', token = '', sourceSha = '', fe
   }
   if (report.checks.every(check => check.status === 'PASS')) report.status = 'PASS_READ_ONLY';
   return report;
+}
+function subdomain(data) {
+  if (typeof data?.subdomain !== 'string' || !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(data.subdomain)) {
+    throw new Error('INVALID_SUBDOMAIN');
+  }
+  return { configured: true };
 }
 function resources(rows, field) {
   if (!Array.isArray(rows)) throw new Error('INVALID_INVENTORY');
