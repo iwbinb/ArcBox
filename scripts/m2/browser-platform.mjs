@@ -9,7 +9,7 @@ import {generatePrivateKey,privateKeyToAccount} from 'viem/accounts';
 import {keccak256,toHex} from 'viem';
 
 mkdirSync('reports',{recursive:true});
-const report={stage:'M2-C',status:'RUNNING',scope:'LOCAL_WORKER_D1_R2_QUEUE_AND_CHROME',sourceSha:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),checks:[],screenshots:[],consoleErrors:[],publicChainWrites:false,orderFixture:'Seeded local paid-order projection for browser download UI only; chain-to-entitlement validation is covered separately by platform runtime tests.',faultFixtures:'A local DEAD file job and audit pagination rows are injected only for UI recovery tests. Real broker exhaustion is tested by the runtime suite.'};
+const report={stage:'M2-C',status:'RUNNING',scope:'LOCAL_WORKER_D1_R2_QUEUE_AND_CHROME',browserPath:'Playwright (Browser plugin not available)',sourceSha:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),checks:[],screenshots:[],consoleErrors:[],publicChainWrites:false,orderFixture:'Seeded local paid-order projection for browser download UI only; chain-to-entitlement validation is covered separately by platform runtime tests.',faultFixtures:'A local DEAD file job and audit pagination rows are injected only for UI recovery tests. Real broker exhaustion is tested by the runtime suite.'};
 const temp=mkdtempSync(join(tmpdir(),'arcbox-platform-browser-')),state=join(temp,'state'),origin='http://127.0.0.1:8790';
 let browser,server,page,logs='',selected=0,rejectSignature=false;
 const signers=[privateKeyToAccount(generatePrivateKey()),privateKeyToAccount(generatePrivateKey())],methods=[];
@@ -20,8 +20,17 @@ const quote=value=>"'"+String(value).replaceAll("'","''")+"'";
 async function waitUntil(fn,ms=15000){const end=Date.now()+ms;while(Date.now()<end){if(await fn())return;await new Promise(r=>setTimeout(r,100));}throw new Error('BROWSER_WAIT_TIMEOUT');}
 async function step(name,fn){await fn();report.checks.push({name,status:'PASS'});console.log('M2C_BROWSER_CHECK '+name);}
 async function idle(){await page.locator('main[aria-busy="false"]').waitFor();}
-async function screenshot(page,name,width){await idle();await page.setViewportSize({width,height:1000});await page.evaluate(()=>document.fonts.ready);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Horizontal overflow');const path=`reports/m2-c-${name}-${width}.png`;await page.screenshot({path,fullPage:true});report.screenshots.push({file:path,width,sha256:sha(readFileSync(path))});}
+async function frames(){await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));}
+async function screenshot(page,name,width,fullPage=true){await idle();await page.setViewportSize({width,height:1000});await page.evaluate(()=>document.fonts.ready);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1),'Horizontal overflow');const path=`reports/m2-c-${name}-${width}.png`;await page.screenshot({path,fullPage});report.screenshots.push({file:path,width,sha256:sha(readFileSync(path))});}
 async function api(page,path,method='GET',data){return page.evaluate(async({path,method,data})=>{const s=(await(await fetch('/api/v1/session')).json()).data;const r=await fetch('/api/v1'+path,{method,headers:{'Content-Type':'application/json',...(method!=='GET'?{'X-CSRF-Token':s.csrfToken}:{})},...(method!=='GET'?{body:JSON.stringify(data??{})}:{})});const v=await r.json();if(!r.ok)throw new Error('API_'+r.status+'_'+v.error?.code);return v.data;},{path,method,data});}
+// Hold a real Worker response, never substitute fixture rows or weaken the
+// assertion. This makes request-order races deterministic without long sleeps.
+async function holdResponse(url){
+  let release,response,arrived=false;const gate=new Promise(resolve=>{release=resolve;});
+  const handler=async route=>{response=await route.fetch();arrived=true;await gate;await route.fulfill({response});};
+  await page.route(url,handler);
+  return {release,wait:()=>waitUntil(()=>arrived),response:()=>response,close:async()=>{release();await page.unroute(url,handler);}};
+}
 try{
   const installed=spawnSync('npm',['ci','--prefix','tests/identity/browser','--ignore-scripts','--no-audit','--no-fund'],{encoding:'utf8',timeout:90000});if(installed.status!==0)throw new Error('PINNED_BROWSER_INSTALL_FAILED');
   const {chromium}=await import(pathToFileURL(resolve('tests/identity/browser/node_modules/playwright-core/index.mjs')).href);
@@ -40,7 +49,7 @@ try{
   await page.addInitScript(()=>{const callbacks=new Map();window.ethereum={request:async arg=>{const v=await window.__platformRequest(arg);if(v?.rejected){const e=new Error('Signature cancelled');e.code=4001;throw e;}return v;},on:(name,fn)=>{if(!callbacks.has(name))callbacks.set(name,new Set());callbacks.get(name).add(fn);},removeListener:(name,fn)=>callbacks.get(name)?.delete(fn)};window.__platformWalletChanged=()=>{for(const fn of callbacks.get('accountsChanged')??[])fn();};});
   let workspaceId,otherWorkspaceId,fileId,orderId,draftId;
   await step('UI-01 identified nonblank Operations page and recoverable signature rejection',async()=>{
-    await page.goto(origin+'/app/operations');await page.getByRole('heading',{name:'文件、任务与后台',exact:true}).waitFor();assert.equal(await page.locator('vite-error-overlay').count(),0);
+    await page.goto(origin+'/app/operations');await page.getByRole('heading',{name:'文件、任务与后台',exact:true}).waitFor();assert.equal(await page.locator('vite-error-overlay').count(),0);assert.equal(await page.title(),'ArcBox | Operations');assert.equal(page.url(),origin+'/app/operations');
     rejectSignature=true;await page.getByRole('button',{name:'签名登录',exact:true}).click();await page.getByRole('alert').waitFor();assert.equal(await page.evaluate(async()=> (await fetch('/api/v1/session')).status),401);
     await page.getByRole('button',{name:'签名登录',exact:true}).click();await page.getByRole('button',{name:'退出登录',exact:true}).waitFor();
     workspaceId=(await api(page,'/workspaces','POST',{name:'Platform acceptance workspace'})).id;
@@ -105,11 +114,39 @@ INSERT INTO platform_notifications(id,job_id,user_id,workspace_id,order_id,code,
     await waitUntil(async()=> (await api(page,`/workspaces/${workspaceId}/jobs`)).items.some(x=>x.id===j.id&&x.state==='SUCCEEDED'&&x.generation===2));
     await page.getByRole('button',{name:'刷新状态',exact:true}).click();await idle();assert.equal(await page.getByRole('button',{name:'重试任务',exact:true}).count(),0);
   });
-  await step('UI-08 load-more retains the first page and appends actual audit records',async()=>{
+  await step('UI-08 delayed audit read stays pending through session refresh; pagination preserves exact rows',async()=>{
     sql(Array.from({length:26},(_,n)=>`INSERT INTO platform_activity(workspace_id,actor_id,action,entity_id,created_at) VALUES(${quote(workspaceId)},${quote(userId)},'browser.pagination-fixture',${quote('row-'+n)},${Date.now()});`).join('\n'));
-    await page.getByRole('button',{name:'操作日志',exact:true}).click();await idle();assert.equal(await page.locator('.op-record').count(),25);
-    const first=await page.locator('.op-record').first().textContent();await page.getByRole('button',{name:'加载更多日志',exact:true}).click();
-    await waitUntil(async()=>await page.locator('.op-record').count()>25);assert.equal(await page.locator('.op-record').first().textContent(),first);
+    const url=origin+`/api/v1/workspaces/${workspaceId}/activity`,held=await holdResponse(url);let firstPage;
+    try{
+      await page.getByRole('button',{name:'操作日志',exact:true}).click();await held.wait();assert.equal(held.response().status(),200);firstPage=(await held.response().json()).data;assert.equal(firstPage.items.length,25);
+      const refreshed=page.waitForResponse(r=>r.url()===origin+'/api/v1/workspaces'&&r.request().method()==='GET');
+      await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await(await refreshed).finished();await frames();
+      assert.equal(await page.locator('main').getAttribute('aria-busy'),'true','Session refresh must not settle an outstanding audit read');
+      assert.equal(await page.locator('.op-empty').count(),0,'Loading is not an empty result');
+      held.release();await idle();assert.equal(await page.locator('.op-record').count(),25);
+      assert.deepEqual(await page.locator('.op-record > code').allTextContents(),firstPage.items.map(x=>x.entity_id));
+    }finally{await held.close();}
+    const first=await page.locator('.op-record').first().textContent();
+    const nextResponse=page.waitForResponse(r=>r.url()===url+'?cursor='+firstPage.nextCursor);
+    await page.getByRole('button',{name:'加载更多日志',exact:true}).click();const next=(await(await nextResponse).json()).data;
+    await waitUntil(async()=>await page.locator('.op-record').count()===25+next.items.length);
+    assert.equal(await page.locator('.op-record').first().textContent(),first);
+    assert.deepEqual(await page.locator('.op-record > code').allTextContents(),[...firstPage.items,...next.items].map(x=>x.entity_id));
+    report.auditRowsVerified=25+next.items.length;
+    await screenshot(page,'activity',1440,false);await screenshot(page,'activity',375,false);await page.setViewportSize({width:1440,height:1000});
+  });
+  await step('UI-08b stale audit completion cannot settle or replace a newer file request',async()=>{
+    const auditUrl=origin+`/api/v1/workspaces/${workspaceId}/activity`,fileUrl=origin+`/api/v1/workspaces/${workspaceId}/files`;
+    const audit=await holdResponse(auditUrl),files=await holdResponse(fileUrl);
+    try{
+      await page.getByRole('button',{name:'刷新状态',exact:true}).click();await audit.wait();
+      await page.getByRole('button',{name:'文件版本',exact:true}).click();await files.wait();
+      const done=page.waitForResponse(r=>r.url()===auditUrl);audit.release();await(await done).finished();await frames();
+      assert.equal(await page.locator('main').getAttribute('aria-busy'),'true');assert.equal(await page.locator('.op-empty').count(),0);
+      files.release();await idle();const expected=(await files.response().json()).data;assert.equal(expected.items.length,3);
+      assert.equal(await page.locator('.op-record').count(),expected.items.length);
+      assert.deepEqual(await page.locator('.op-record strong').allTextContents(),expected.items.map(x=>x.name));
+    }finally{await audit.close();await files.close();}
   });
   await step('UI-09 viewer permission and wallet change clear private records',async()=>{
     await api(page,`/workspaces/${workspaceId}/invitations`,'POST',{address:signers[1].address,role:'viewer'});
@@ -124,7 +161,7 @@ INSERT INTO platform_notifications(id,job_id,user_id,workspace_id,order_id,code,
     await api(page,'/auth/logout','POST',{});await page.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));await page.getByRole('button',{name:'Sign in',exact:true}).waitFor();assert.equal(await page.locator('.op-record').count(),0);
     assert.equal(await page.evaluate(async()=> (await fetch('/api/v1/session')).status),401);assert.deepEqual(report.consoleErrors,[]);assert.ok(methods.every(m=>['eth_accounts','eth_requestAccounts','eth_chainId','personal_sign'].includes(m)));
   });
-  report.walletMethods=[...new Set(methods)];report.status='PASS';
+  assert.equal(report.checks.length,11);report.walletMethods=[...new Set(methods)];report.status='PASS';
 }catch(error){
   report.status='FAIL';report.error=error.message;process.exitCode=1;console.error('M2C_BROWSER_FAILURE '+error.message);
   if(page)try{

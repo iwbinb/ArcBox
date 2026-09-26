@@ -8,15 +8,21 @@ export function useOperations(){
   const [lang,setLang]=useState<'zh'|'en'>('zh'),[session,setSession]=useState<Session|null>(null),[spaces,setSpaces]=useState<Workspace[]>([]),[wid,setWid]=useState('');
   const [tab,setTab]=useState<Tab>('files'),[files,setFiles]=useState<Page<FileItem>>(empty),[jobs,setJobs]=useState<Page<JobItem>>(empty),[notes,setNotes]=useState<Page<NotificationItem>>(empty),[activity,setActivity]=useState<Page<ActivityItem>>(empty);
   const [catalog,setCatalog]=useState<CatalogItem[]>([]),[catalogId,setCatalogId]=useState('sample-v1'),[series,setSeries]=useState(''),[ops,setOps]=useState<Operations|null>(null),[recovery,setRecovery]=useState<Recovery|null>(null),[orderId,setOrderId]=useState('');
-  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[revision,setRevision]=useState(0);
+  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false),[sessionLoading,setSessionLoading]=useState(true),[revision,setRevision]=useState(0);
+  const [settledView,setSettledView]=useState('');
   const epoch=useRef(0),loads=useRef(0),sessionRef=useRef<Session|null>(null),pendingUpload=useRef<{key:string;workspaceId:string;catalogId:string;seriesId:string}|null>(null);
   const logoutPending=useRef<Promise<unknown>>(Promise.resolve());
+  // Readiness belongs to this exact view, not to whichever async request last
+  // toggled a shared boolean. A changed view is pending in its first render,
+  // before useEffect starts. Session refresh cannot settle an outstanding list.
+  const viewKey=JSON.stringify([session?.user.id??'',wid,tab,revision]);
+  const loading=session?settledView!==viewKey:sessionLoading;
   const t=(zh:string,en:string)=>lang==='zh'?zh:en;
   const current=spaces.find(s=>s.id===wid),edit=current?.role==='owner'||current?.role==='editor',operate=current?.role==='owner'||current?.role==='operator';
   const date=(n:number)=>new Date(n).toLocaleString(lang==='zh'?'zh-CN':'en-US');
   function clear(){
     epoch.current++;loads.current++;sessionRef.current=null;pendingUpload.current=null;
-    setSession(null);setSpaces([]);setWid('');setFiles(empty());setJobs(empty());setNotes(empty());setActivity(empty());setRecovery(null);setOps(null);setCatalog([]);setOrderId('');setNotice('');setBusy(false);setLoading(false);
+    setSession(null);setSpaces([]);setWid('');setFiles(empty());setJobs(empty());setNotes(empty());setActivity(empty());setRecovery(null);setOps(null);setCatalog([]);setOrderId('');setNotice('');setBusy(false);setSessionLoading(false);setSettledView('');
   }
   function invalidate(){
     const old=sessionRef.current;clear();
@@ -41,7 +47,7 @@ export function useOperations(){
     const e=epoch.current;
     try{const s=await api<Session>('/session');await checkWallet(s);const ws=await api<Workspace[]>('/workspaces');if(e!==epoch.current)return;sessionRef.current=s;setSession(s);setSpaces(ws);setWid(old=>ws.some(w=>w.id===old)?old:ws[0]?.id??'');}
     catch(err){if(e===epoch.current){if(!(err instanceof ClientError&&err.status===401))failure(err);else clear();}}
-    finally{if(e===epoch.current||!sessionRef.current)setLoading(false);}
+    finally{if(e===epoch.current||!sessionRef.current)setSessionLoading(false);}
   }
   useEffect(()=>{document.documentElement.lang=lang;},[lang]);
   useEffect(()=>{
@@ -52,8 +58,9 @@ export function useOperations(){
     return()=>{epoch.current++;loads.current++;p?.removeListener?.('accountsChanged',change);p?.removeListener?.('chainChanged',change);document.removeEventListener('visibilitychange',visible);};
   },[]);
   useEffect(()=>{
-    if(!session)return;const e=epoch.current,l=++loads.current;setLoading(true);setError('');setFiles(empty());setJobs(empty());setActivity(empty());setOps(null);
-    const valid=()=>e===epoch.current&&l===loads.current;
+    if(!session)return;const e=epoch.current,l=++loads.current,key=viewKey;let active=true;
+    setError('');setFiles(empty());setJobs(empty());setActivity(empty());setOps(null);
+    const valid=()=>active&&e===epoch.current&&l===loads.current;
     void (async()=>{try{
       const promises:Promise<unknown>[]=[];
       if(wid)promises.push(api<Operations>(`/workspaces/${wid}/operations`).then(v=>{if(valid())setOps(v);}));
@@ -62,8 +69,9 @@ export function useOperations(){
       if(tab==='activity'&&wid)promises.push(api<Page<ActivityItem>>(`/workspaces/${wid}/activity`).then(v=>{if(valid())setActivity(v);}));
       if(tab==='notifications')promises.push(api<Page<NotificationItem>>('/me/notifications').then(v=>{if(valid())setNotes(v);}));
       await Promise.all(promises);
-    }catch(err){if(valid())failure(err);}finally{if(valid())setLoading(false);}})();
-  },[session?.user.id,wid,tab,revision]);
+    }catch(err){if(valid())failure(err);}finally{if(valid())setSettledView(key);}})();
+    return()=>{active=false;};
+  },[viewKey]);
   async function action(fn:(s:Session,check:()=>void)=>Promise<void>,reload=true){
     if(busy||!sessionRef.current)return;const e=epoch.current,s=sessionRef.current;setBusy(true);setError('');setNotice('');
     const check=()=>{if(e!==epoch.current||sessionRef.current?.user.id!==s.user.id)throw new ClientError('WALLET_CHANGED');};
@@ -105,17 +113,20 @@ export function useOperations(){
     const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=g.file.name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);setNotice(t('文件已交给浏览器保存。','File handed to your browser for saving.'));
   },false);}
   function more(kind:'files'|'jobs'|'notifications'|'activity'){
-    const data=kind==='files'?files:kind==='jobs'?jobs:kind==='activity'?activity:notes;if(data.nextCursor===null)return;
+    const data=kind==='files'?files:kind==='jobs'?jobs:kind==='activity'?activity:notes;if(loading||data.nextCursor===null)return;
+    const l=loads.current;
     void action(async(_s,check)=>{
-      const root=kind==='notifications'?'/me/notifications':`/workspaces/${wid}/${kind}`,result=await api<Page<FileItem|JobItem|NotificationItem|ActivityItem>>(`${root}?cursor=${encodeURIComponent(data.nextCursor!)}`);check();
+      const root=kind==='notifications'?'/me/notifications':`/workspaces/${wid}/${kind}`,result=await api<Page<FileItem|JobItem|NotificationItem|ActivityItem>>(`${root}?cursor=${encodeURIComponent(data.nextCursor!)}`);check();if(l!==loads.current)return;
       if(kind==='files')setFiles(v=>({items:[...v.items,...result.items as FileItem[]],nextCursor:result.nextCursor}));
       if(kind==='jobs')setJobs(v=>({items:[...v.items,...result.items as JobItem[]],nextCursor:result.nextCursor}));
       if(kind==='notifications')setNotes(v=>({items:[...v.items,...result.items as NotificationItem[]],nextCursor:result.nextCursor}));
       if(kind==='activity')setActivity(v=>({items:[...v.items,...result.items as ActivityItem[]],nextCursor:result.nextCursor}));
     },false);
   }
-  function changeWorkspace(value:string){if(value===wid)return;loads.current++;setWid(value);setSeries('');setFiles(empty());setJobs(empty());setActivity(empty());setOps(null);setError('');setNotice('');}
-  function switchTab(value:Tab){if(value===tab)return;loads.current++;setTab(value);setError('');setNotice('');}
+  // Increment the view revision even when returning to an earlier tab. Its
+  // previous settled key must never describe a newly requested empty list.
+  function changeWorkspace(value:string){if(value===wid)return;loads.current++;setRevision(v=>v+1);setWid(value);setSeries('');setFiles(empty());setJobs(empty());setActivity(empty());setOps(null);setError('');setNotice('');}
+  function switchTab(value:Tab){if(value===tab)return;loads.current++;setRevision(v=>v+1);setTab(value);setError('');setNotice('');}
   function changeOrder(value:string){setOrderId(value.trim());setRecovery(null);}
   function openRecovery(id:string){changeOrder(id);switchTab('recovery');}
   function refresh(){if(tab==='recovery'&&recovery)recover();else setRevision(v=>v+1);}
