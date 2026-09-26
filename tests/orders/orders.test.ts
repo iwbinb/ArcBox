@@ -1,12 +1,12 @@
 import { beforeAll, beforeEach, expect, test } from 'vitest';
 import { keccak256, toHex, type Hex } from 'viem';
-import { ApiError } from '../../workers/identity/security';
-import { CHAIN_ID, UINT256_MAX, USDC, hash32, orderSummary, ordersConfiguration, parseUsdc, uint } from '../../workers/orders/domain';
+import { CHAIN_ID, UINT256_MAX, USDC, orderSummary, ordersConfiguration, parseUsdc, uint } from '../../workers/orders/domain';
 import { ChainReader } from '../../workers/orders/chain-reader';
 import { createIntent, freezeRule, order, registerLocalDeployment, submitAttempt, transactionPlan } from '../../workers/orders/store';
-import { ingestVerifiedReceipt, reconcileOrder } from '../../workers/orders/projection';
-import { refreshAttempt, replayRange, scanDeployment, syncTick } from '../../workers/orders/sync';
+import { ingestVerifiedReceipt } from '../../workers/orders/projection';
+import { drainPending, refreshAttempt, replayRange, scanDeployment, syncTick } from '../../workers/orders/sync';
 import { actor, addReceipt, bindings, call, context, count, join, json, newAddress, newHash, resetRpc, rpc, setup, type Context } from './helpers';
+import { registerLocalEvmReplay } from './evm-replay';
 
 beforeAll(setup);
 beforeEach(resetRpc);
@@ -21,7 +21,6 @@ async function attempt(c:Context,hash:Hex,purpose:'approval'|'payment'|'business
   return refreshAttempt(bindings,a.id);
 }
 async function snapshot(c:Context){return order(bindings.DB,c.order.id);}
-const error=(code:string)=>expect.objectContaining({code});
 
 test.each(['','-1','1e6','01','1.0',1,null,' 1','+1'])('MONEY-01 integer input rejects %j',value=>{expect(()=>uint(value)).toThrow();});
 test.each(['0.0000001','1e-6','01.1','-0.1',0.1,'1.'])('MONEY-02 decimal input rejects %j',value=>{expect(()=>parseUsdc(value)).toThrow();});
@@ -287,3 +286,32 @@ test('BOUNDARY-01 absent flags and hosted/mainnet configurations cannot enable p
   expect(()=>new ChainReader({...bindings,ORDER_RPC_URL:'https://evil.test'})).toThrow();
   expect(await syncTick({...bindings,ORDER_SYNC_ENABLED:'false'})).toEqual({status:'DISABLED'});
 });
+test('RECOVERY-01 durable inbox recovers without requiring a new transaction',async()=>{
+  const c=await context(),h=addReceipt(c);
+  await bindings.DB.prepare("CREATE TRIGGER test_ledger_fault BEFORE INSERT ON order_ledger BEGIN SELECT RAISE(ABORT,'INJECTED_LEDGER_FAILURE'); END").run();
+  try{await expect(ingest(c,h)).rejects.toThrow();}finally{await bindings.DB.prepare('DROP TRIGGER test_ledger_fault').run();}
+  expect((await snapshot(c)).applied_sequence).toBe(0);
+  expect(await drainPending(bindings.DB,c.deployment)).toBe(1);expect((await snapshot(c)).funds_state).toBe('LOCKED');
+  expect(await drainPending(bindings.DB,c.deployment)).toBe(0);
+});
+test('RECOVERY-02 final cursor write cannot adopt a newly changed end hash',async()=>{
+  const c=await context();addReceipt(c);let reads=0;
+  rpc.transform=(method,result,params)=>method==='eth_getBlockByNumber'&&params[0]===toHex(30)&&++reads===3?{...(result as any),hash:newHash()}:result;
+  await expect(scanDeployment(bindings,c.deployment.id)).rejects.toMatchObject({code:'RPC_BLOCK_MISMATCH'});
+  expect(await bindings.DB.prepare('SELECT last_complete_block FROM order_sync_cursors WHERE deployment_id=?1').bind(c.deployment.id).first('last_complete_block')).toBe(9);
+});
+test('RECOVERY-03 observed pending transaction is replaced only after same-nonce mining',async()=>{
+  const c=await context(),oldHash=addReceipt(c);rpc.receipts.delete(oldHash);
+  Object.assign(rpc.transactions.get(oldHash)!,{blockNumber:null,blockHash:null,transactionIndex:null});
+  const old=await attempt(c,oldHash);expect(old.status).toBe('PENDING');
+  const replacement=await attempt(c,addReceipt(c));expect(replacement.status).toBe('CONFIRMED');
+  expect(await bindings.DB.prepare('SELECT status FROM transaction_attempts WHERE id=?1').bind(old.id).first('status')).toBe('REPLACED');
+  rpc.failMethod='eth_getTransactionReceipt';expect((await refreshAttempt(bindings,replacement.id)).status).toBe('CONFIRMED');
+});
+test('RECOVERY-04 lagging provider cannot move a completed cursor backwards',async()=>{
+  const c=await context();await scanDeployment(bindings,c.deployment.id);rpc.latest=20;
+  await expect(scanDeployment(bindings,c.deployment.id)).rejects.toMatchObject({code:'RPC_HEAD_BEHIND'});
+  expect(await bindings.DB.prepare('SELECT last_complete_block FROM order_sync_cursors WHERE deployment_id=?1').bind(c.deployment.id).first('last_complete_block')).toBe(30);
+});
+
+registerLocalEvmReplay();
