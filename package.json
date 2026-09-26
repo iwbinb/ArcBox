@@ -27,7 +27,7 @@
     "build:identity": "vite build --mode identity --outDir ../../dist/identity",
     "dev:identity": "wrangler dev --config wrangler.identity.jsonc --ip 127.0.0.1 --port 8789",
     "test:identity:browser": "node scripts/m2/browser-identity.mjs",
-    "test:orders": "vitest run --config vitest.orders.config.ts",
+    "test:orders": "node scripts/m2/capture-order-receipts.mjs && vitest run --config vitest.orders.config.ts",
     "verify:orders": "node scripts/m2/verify-orders.mjs"
   },
   "dependencies": {
