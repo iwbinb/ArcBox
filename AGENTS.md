@@ -45,9 +45,11 @@ TypeScript、React/Vite、Workers API、D1、R2、Queues/Cron、Solidity/Foundry
 
 2026-09-23 M1-A 已选定任务搜索优先的首页方向，并在 `design/m1-a` 交付四类响应式原型与 [视觉验收记录](docs/validation/M1-A-STATUS.md)。M1-B 正式 UI 应以该基准及 docs/03、04 为起点；原型不是正式产品代码、云端预览或资金入口。
 
-2026-09-24 M1-C / D0 已部署仅供演示的 `arcbox-web-demo` Worker，实际网址、部署源码/版本、浏览器检查和回退证据见 [D0 验收记录](docs/validation/M1-C-D0.md)。该环境没有资金能力或 D1/R2/Queues，不得复用为测试网/生产资金入口；下一子阶段为 M2-A。
+2026-09-24 M1-C / D0 已部署仅供演示的 `arcbox-web-demo` Worker，实际网址、部署源码/版本、浏览器检查和回退证据见 [D0 验收记录](docs/validation/M1-C-D0.md)。该环境没有资金能力或 D1/R2/Queues，不得复用为测试网/生产资金入口；当时的下一子阶段为 M2-A。
 
 2026-09-24 Demo 预览已接入 [GitHub `dev` 自动部署](docs/validation/DEMO-AUTO-DEPLOY.md)：四项 CI 检查通过才发布同一 SHA；PR 和 `main` 不发布。仓库开关 `ARCBOX_DEMO_DEPLOY_ENABLED` 已启用，`arcbox_demo` 环境只允许 `dev`。修改 Demo Worker 前须按该自动发布边界审查；需要回退时先关闭开关，防止后续推送覆盖回退版本。
+
+2026-09-24 M2-A 已加入独立 `workers/identity`、D1 身份/协作迁移和 `identity` 构建的 `/app` 工作区。范围、API、实际 Worker/D1/Chrome 测试和未测项见 [M2-A 验收记录](docs/validation/M2-A-STATUS.md)。普通 Demo 构建不启用身份模块；不得将全零本地 database_id 配置用于部署，不得删除既有 Demo 禁用资金的门禁。只有本地实现与测试证据，不是 Cloudflare 身份后台已上线或真实扩展已验证。阶段 PR 审查后，下一子阶段为 **M2-B 订单与链上同步**，每轮继续只完成一个子阶段。
 
 ## 每个 PR 的完成定义
 

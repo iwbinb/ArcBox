@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": { "lib": ["ES2022"], "types": ["node", "@cloudflare/workers-types", "@cloudflare/vitest-plugin/types", "vite/client"] },
+  "include": ["workers/identity/**/*.ts", "tests/identity/**/*.ts", "vitest.identity.config.ts"]
+}
