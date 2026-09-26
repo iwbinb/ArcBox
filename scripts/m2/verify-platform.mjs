@@ -17,10 +17,10 @@ try{
   const tests=JSON.parse(readFileSync('reports/platform-tests.json','utf8'));
   report.tests={total:tests.numTotalTests,passed:tests.numPassedTests,failed:tests.numFailedTests,pending:tests.numPendingTests};
   report.cases=tests.testResults.flatMap(f=>f.assertionResults.map(t=>({name:t.fullName,status:t.status})));
-  if(!tests.success||tests.numTotalTests<40||tests.numFailedTests||tests.numPendingTests||report.cases.some(t=>t.status!=='passed'))throw new Error('Incomplete platform tests');
-  for(const prefix of ['FILE-','RULE-','ACCESS-','QUEUE-05 real broker','RECOVERY-'])if(!report.cases.some(t=>t.name.startsWith(prefix)))throw new Error('Missing mandatory coverage');
+  if(!tests.success||tests.numTotalTests<58||tests.numFailedTests||tests.numPendingTests||report.cases.some(t=>t.status!=='passed'))throw new Error('Incomplete platform tests');
+  for(const prefix of ['FILE-','RULE-','ACCESS-','QUEUE-05 real broker','RECOVERY-','RACE-','EXPIRY-','RECOVERY-CONTRACT','PAGINATION-','RECOVERY-CRASH','SOURCE-'])if(!report.cases.some(t=>t.name.startsWith(prefix)))throw new Error('Missing mandatory coverage');
   report.browser=JSON.parse(readFileSync('reports/platform-browser.json','utf8'));
-  if(report.browser.sourceSha!==report.sourceSha||report.browser.status!=='PASS'||report.browser.checks.length<8||report.browser.consoleErrors.length||report.browser.screenshots.length<4)throw new Error('Incomplete browser evidence');
+  if(report.browser.sourceSha!==report.sourceSha||report.browser.status!=='PASS'||report.browser.checks.length<10||report.browser.checks.some(c=>c.status!=='PASS')||report.browser.consoleErrors.length||report.browser.screenshots.length<6)throw new Error('Incomplete browser evidence');
   for(const image of report.browser.screenshots)if(createHash('sha256').update(readFileSync(image.file)).digest('hex')!==image.sha256)throw new Error('Screenshot digest mismatch');
   report.status='PASS_LOCAL';
 }catch(error){report.status='FAIL';report.failure=String(error.message);process.exitCode=1;}
